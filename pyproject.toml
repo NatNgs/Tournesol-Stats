@@ -49,7 +49,7 @@ classifiers = [] # Optional
 # For an analysis of this field vs pip's requirements files see:
 # https://packaging.python.org/discussions/install-requires-vs-requirements/
 dependencies = [ # Optional
-	"googleapiclient",
+	"google-api-python-client",
 	"matplotlib",
 	"networkx"
 ]

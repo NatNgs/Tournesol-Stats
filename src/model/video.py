@@ -1,4 +1,4 @@
-from channel import Channel
+from model.channel import Channel
 
 FILE_LOCATION = 'data/cache/video_info.tsv'
 
