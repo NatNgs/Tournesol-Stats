@@ -4,7 +4,7 @@ class Channel:
 	def __init__(self, id: str, name: str, lang: str):
 		self.id = id
 		self.name = name
-		self.lang = lang
+		self.lang = (lang or '??')[:2]
 
 	def __str__(self):
 		return f"[{self.id}] {self.name} ({self.lang})"
@@ -20,8 +20,8 @@ def load_channels_data():
 		if not line:
 			break
 
-		ldata = line.split('\t')
-		channels[ldata[0]] = Channel(ldata[0], ldata[1], ldata[2])
+		ldata = line.strip().split('\t')
+		channels[ldata[0]] = Channel(ldata[0], ldata[2], ldata[1])
 	file.close()
 	return channels
 

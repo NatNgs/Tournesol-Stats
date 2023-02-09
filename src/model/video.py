@@ -22,7 +22,7 @@ def load_videos_data(channels: dict[str, Channel]):
 		if not line:
 			break
 
-		ldata = line.split('\t')
+		ldata = line.strip().split('\t')
 		all_vids[ldata[1]] = Video(channels[ldata[0]], ldata[1], ldata[2])
 	file.close()
 	return all_vids
