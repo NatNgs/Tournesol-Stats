@@ -11,9 +11,13 @@ class Channel:
 
 def load_channels_data():
 	# channelid \t lang \t channelname
-	file = open(FILE_LOCATION, 'r', encoding='utf-8')
-
 	channels: dict[str, Channel] = dict() # {cid: Channel}
+
+	try:
+		file = open(FILE_LOCATION, 'r', encoding='utf-8')
+	except:
+		return channels
+
 	while True:
 		line = file.readline()
 		# if line is empty, end of file is reached

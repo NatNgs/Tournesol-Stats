@@ -1,6 +1,7 @@
 import sys
 
-from scripts import basic_grapher, data_fetcher
+import scripts.basic_grapher2 as grph
+import scripts.data_fetcher as fetcher
 
 if __name__ == '__main__':
 	# Unload parameters
@@ -20,16 +21,16 @@ if __name__ == '__main__':
 	target_user = sys.argv[2]
 
 	# Init data
-	videos = data_fetcher.do_fetch(input_dir, target_user) # {vid: Video, ...}
+	videos = fetcher.do_fetch(input_dir, target_user) # {vid: Video, ...}
 
 	# Build Graph
-	graph = basic_grapher.build_graph(input_dir, target_user, videos)
+	graph = grph.build_graph(input_dir, target_user)
 
 	# Do find most distant nodes
-	recommendations = basic_grapher.print_furthest_nodes(graph, videos)
+	grph.add_recommended_nodes(graph, videos)
 
 	# Print graph picture
 	date = input_dir.split('_')[-1][:8]
-	basic_grapher.draw_graph_to_file(graph, videos, recommendations, f"data/output/graph_{target_user}_{date}.png")
+	grph.draw_graph_to_file(graph, videos, f"data/output/graph_{target_user}_{date}.png")
 
 

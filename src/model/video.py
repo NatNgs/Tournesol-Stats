@@ -15,7 +15,11 @@ def load_videos_data(channels: dict[str, Channel]):
 	all_vids: dict[str, Video] = dict() # {vid: Video}
 
 	# channel_id \t video_id \t video_name
-	file = open(FILE_LOCATION, 'r', encoding='utf-8')
+	try:
+		file = open(FILE_LOCATION, 'r', encoding='utf-8')
+	except:
+		return all_vids
+
 	while True:
 		line = file.readline()
 		# if line is empty, end of file is reached

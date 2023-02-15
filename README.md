@@ -17,7 +17,19 @@ Create a graph, as a .png file, representing the user's comparisons.
 
 ### Setup
 
-#### API Key
+#### Initiate folder structure
+
+The app will work on a specific directory you may need to create empty first:
+
+```
+- README.md (this file, for comparison)
+- data (directory to create)
+	|- YT_API_KEY.txt (see API key configuration below)
+	|- cache (directory to create, where youtube data will be cached)
+	|- output (directory to create, where output png pictures will be dropped)
+```
+
+#### API Key configuration
 Create a file in `TournesolStats/data/YT_API_KEY.txt`, and paste your youtube API key in (TODO: document how to find the YT API key)
 
 (For comparison, this readme you're reading is: `TournesolStats/README.md`)
@@ -30,6 +42,7 @@ In the footer of [tournesol.app] website, there is a link to download the public
 Get the dataset (downloaded as a zip archive), and unzip-it anywhere you like on your computer.
 
 Keep the directory name (`tournesol_export_yyyymmddThhmmssZ`) and structure inside it unchanged, this script depends on it.
+
 
 ### How to use
 
