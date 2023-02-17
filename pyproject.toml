@@ -52,7 +52,8 @@ dependencies = [ # Optional
 	"google-api-python-client",
 	"matplotlib",
 	"networkx",
-	'scipy'
+	"scipy",
+	"fa2l"
 ]
 
 # List additional groups of dependencies here (e.g. development dependencies). Users will be able to install these using the "extras" syntax, for example:

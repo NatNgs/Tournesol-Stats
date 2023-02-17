@@ -1,173 +1,244 @@
 import math
-import time
+import warnings
 import matplotlib.pyplot as plt
 import networkx as nx
+import time
 
-from model.channel import Channel
+import numpy as np
+
 from model.comparisons import ComparisonFile, ComparisonLine
 from model.video import Video
+from scripts.nxlayouts import radialized_layout
+from scripts.force_directed_graph import ForceLayout
 
-def get_graph(input_dir: str, target_user: str, channels: dict[str,Channel], videos: dict[str,Video]):
+def build_graph(input_dir: str, target_user: str):
 	graph = nx.Graph()
 	comparisons = ComparisonFile(input_dir)
 
-	# Parsing comparison data
-	comparisons.foreach(lambda linedata: unload_self_comparison_data(graph, linedata, target_user, 'largely_recommended'))
-	print('nodes:', len(graph.nodes))
-	self_edges_cnt = len(graph.edges)
-	print('edges (myself):', self_edges_cnt)
-
-	# Parsing comparison data
-	self_nodes: set[str] = set(graph.nodes)
-	comparisons.foreach(lambda linedata: unload_others_comparison_data(graph, linedata, target_user, 'largely_recommended', self_nodes))
-	print('edges (others):', len(graph.edges)-self_edges_cnt)
-
-	avgdists = compute_avgdists(graph)
-	graph_disconnectivity = compute_disconnectivity(avgdists)
-	print(f"Graph disconectivity: {graph_disconnectivity:0.4f}")
-
-	print('Simulating new edges...')
-	recommended_edges = simulate_missing_edges(graph, graph_disconnectivity)
-	add_recommended_edges(graph, recommended_edges, graph_disconnectivity)
-
-	print('Graphing...')
-	do_graph(graph, videos)
-	print('End.')
-
-def unload_self_comparison_data(graph: nx.Graph, ldata: ComparisonLine, filter_user: str, criteria: str):
-	if ldata.user == filter_user and ldata.criteria == criteria:
-		graph.add_edge(ldata.vid1, ldata.vid2, cmps=1, cmp_by_me=True)
-
-def unload_others_comparison_data(graph: nx.Graph, ldata: ComparisonLine, filter_user: str, criteria, nodes: set[str]):
-	if ldata.user != filter_user and ldata.criteria == criteria and ldata.vid1 in nodes and ldata.vid2 in nodes:
-		if graph.has_edge(ldata.vid1, ldata.vid2):
-			edge = graph.get_edge_data(ldata.vid1, ldata.vid2, None)
-			edge['cmps'] = edge['cmps']+1
+	users_data:dict[str, int] = dict()
+	def __fetch_usercmpscount(ldata: ComparisonLine):
+		if not ldata.user in users_data:
+			users_data[ldata.user] = 1
 		else:
-			graph.add_edge(ldata.vid1, ldata.vid2, cmps=1)
+			users_data[ldata.user] = users_data[ldata.user] + 1
+	comparisons.foreach(__fetch_usercmpscount)
 
-def compute_avgdists(graph: nx.Graph):
+	# Exclude users with not enough comparisons
+	other_users = {uid for uid in users_data if users_data[uid] > 2}
+	if not target_user in other_users:
+		other_users.add(target_user)
+
+	# Parsing comparison data
+	criteria = 'largely_recommended'
+	def __unload_comparison_data(ldata: ComparisonLine):
+		if ldata.criteria != criteria or ldata.user not in other_users:
+			return
+
+		if not graph.has_edge(ldata.vid1, ldata.vid2):
+			graph.add_edge(ldata.vid1, ldata.vid2, cmps=0, cmp_by_me=False)
+
+		edge = graph.get_edge_data(ldata.vid1, ldata.vid2, None)
+		edge['cmps'] = edge['cmps']+1
+
+		if ldata.user == target_user:
+			edge['cmp_by_me'] = True
+
+	comparisons.foreach(__unload_comparison_data)
+
+	return graph
+
+
+
+def add_recommended_nodes(graph: nx.Graph, videos: dict[str, Video]):
+	# Keep only nodes compared by me
+	keep_nodes = set()
 	for edge in graph.edges.data():
-		edge[2]['weight'] = 1/edge[2]['cmps']
+		if edge[2]['cmp_by_me']:
+			keep_nodes.add(edge[0])
+			keep_nodes.add(edge[1])
 
-	lengths = dict(nx.all_pairs_dijkstra_path_length(graph))
-	return [sum(lengths[node].values())/len(lengths[node]) for node in graph.nodes]
+	# Exclude from search nodes with too many connexions (most of the time will not be in furthest, and reduces a lot time to compute)
+	nodes_degree = [(node, graph.degree(node, None)) for node in graph.nodes if node in keep_nodes]
+	aggregated = list()
+	for pair in nodes_degree:
+		while len(aggregated) < pair[1]:
+			aggregated.append(0)
+		aggregated[pair[1]-1] = aggregated[pair[1]-1] + 1
 
-def compute_disconnectivity(avgdists:list[float]):
-	#return max(avgdists) # max
-	#return sum(avgdists)/len(avgdists) # avg
-	return sum([x*x for x in avgdists])/len(avgdists) # sqavg (long distance makes higher change)
+	# Keeping minimum 80% of the nodes, from lowest degree (note that 80% is magic number, but do the job pretty well)
+	max_degree_to_keep = 1
+	target_count = len(nodes_degree) * .8
+	while sum(aggregated[:max_degree_to_keep]) < target_count:
+		max_degree_to_keep = max_degree_to_keep + 1
+	max_degree_to_keep = max_degree_to_keep + 1
+	print('Ignoring', sum(aggregated[max_degree_to_keep:]), 'nodes having degree between', max_degree_to_keep, 'and', len(aggregated), end=' ')
+	nodes = [node for (node, degree) in nodes_degree if degree <= max_degree_to_keep]
+	print(f"(ignoring {len(nodes_degree)*(len(nodes_degree)-1) - len(nodes)*(len(nodes)-1)}/{len(nodes_degree)*(len(nodes_degree)-1)} ({(len(nodes_degree)*(len(nodes_degree)-1) - len(nodes)*(len(nodes)-1))/(len(nodes_degree)*(len(nodes_degree)-1)):0.1%}) operations)")
+
+	max_max_min = 0
+	paths = []
+	for node1 in nodes:
+		shrt_paths = dict() # {target: shortestpath}
+		for node2 in nodes:
+			shrt_paths[node2] = nx.shortest_path_length(graph, node1, node2, weight=None)
+
+		max_min = max(shrt_paths.values())
+		if max_min > max_max_min:
+			paths = []
+			max_max_min = max_min
+
+		if max_min == max_max_min:
+			for node2 in shrt_paths:
+				if node2 in nodes and node2 > node1 and shrt_paths[node2] == max_min:
+					paths.append((node1, node2))
+
+	print('Maximum distance =', max_max_min)
+	# Sort by 1: max degree, 2: sum of degrees
+	paths.sort(key=lambda pair: (
+		max(graph.degree(pair[0]), graph.degree(pair[1])),
+		graph.degree(pair[0]) + graph.degree(pair[1])
+	))
+
+	print('\nRecommending:')
+	already_relinked = set()
+	for path in paths:
+		if not (path[0] in already_relinked or path[1] in already_relinked):
+			print(f"{videos[path[0]]}\n{videos[path[1]]}\n")
+			already_relinked.add(path[0])
+			already_relinked.add(path[1])
+			graph.add_edge(path[0], path[1], cmps=0, cmp_by_me=False)
 
 
-def simulate_edge(graph: nx.Graph, node1: str, node2: str):
-	# Add new edge
-	graph.add_edge(node1, node2, cmps=1)
-	# Simulate
-	disc = compute_disconnectivity(compute_avgdists(graph))
-	# Remove edge
-	graph.remove_edge(node1, node2)
-	return {'nd1': node1, 'nd2': node2, 'disc': disc}
 
-def simulate_missing_edges(graph: nx.Graph, disconnectivity: float):
-	simulated = []
+def __make_subgraph(graph: nx.Graph):
+	vids_to_show = set()
+	for edge in graph.edges.data():
+		if edge[2]['cmp_by_me']:
+			vids_to_show.add(edge[0])
+			vids_to_show.add(edge[1])
+	return nx.subgraph_view(graph, filter_node=lambda node: node in vids_to_show)
 
-	# Ignoring nodes with highest degree
-	simulating_nodes = list(graph.nodes)
-	simulating_nodes.sort(key=lambda node: graph.degree[node])
-	simulating_nodes = simulating_nodes[:5]
+def draw_graph_to_file(graph: nx.Graph, videos: dict[str, Video], filename: str):
+	print('Graphing...')
 
-	# Computing every missing edge between non-highest-degree nodes
-	begin = time.perf_counter()
-	t = begin
-	cnt = 0
-	for node1 in simulating_nodes:
-		for node2 in simulating_nodes:
-			if node1 < node2 and not graph.get_edge_data(node1, node2, None):
-				cnt = cnt + 1
-				new_edge_data = simulate_edge(graph, node1, node2)
-				if new_edge_data['disc'] < disconnectivity:
-					simulated.append(new_edge_data)
+	# Keep unwanted nodes
+	subgraph: nx.Graph = __make_subgraph(graph)
 
-				t2 = time.perf_counter()
-				if t2 > t+5:
-					print(f"Simulating... ({cnt}/{int(len(simulating_nodes)*(len(simulating_nodes)-1)/2)} simulated & {len(simulated)} kept in {int(t2-begin)}s)")
-					t = t2
+	def _inv_weights(edge: dict[str, any]) -> float:
+		val = edge[2].get('cmps', 0)
+		if val == 0:
+			return None
+		return 1/val
 
-	return simulated
+	def _prepare_image():
+		# Prepare graph
+		plt.box(False)
+		plt.clf()
+		plt.tight_layout()
+		plt.rc('axes', unicode_minus=False)
 
+		return plt.figure(figsize=(10, 10), frameon=False)
 
-def add_recommended_edges(graph: nx.Graph, recommended_edges: list, disconnectivity: float):
-	recommended_edges.sort(key=lambda x: (graph.degree[x['nd1']] + graph.degree[x['nd2']], -x['disc']))
-	recommended_edges = recommended_edges[:10]
-	while recommended_edges:
-		recom = recommended_edges.pop(0)
-		node1 = recom['nd1']
-		node2 = recom['nd2']
-		diff=disconnectivity - recom['disc']
-		graph.add_edge(node1, node2, cmps=0, weight=diff, recom=diff)
+	def _do_graph(pos, fig):
+		fig.clear()
+		ax = fig.add_axes([0, 0, 1, 1])
+		# ax.axis('off')
+		ax.set_facecolor('#FFF') # Background color
 
-def do_graph(graph: nx.Graph, videos: dict[str, Video]):
-	pos = nx.spring_layout(graph, pos=nx.circular_layout(graph))
+		# Lang color
+		# langs = list({videos[node].channel.lang for node in graph.nodes if node in videos})
+		# if '??' in langs:
+		# 	langs.remove('??')
+		# nblangs = len(langs)
+		# langscolor = {langs[i]: colorsys.hsv_to_rgb(i/nblangs, .9, .9) for i in range(nblangs)}
+		# langscolor['??'] = '#888'
+		langscolor = {'??': '#888', 'fr': '#88F', 'en': '#F88'}
 
-	# Prepare graph
-	plt.box(False)
-	plt.clf()
-	plt.tight_layout()
-	fig = plt.figure(figsize=(10, 5), frameon=False)
-	ax = fig.add_axes([0, 0, 1, 1])
-	# ax.axis('off')
-	ax.set_facecolor('#aaa') # Background color
+		nx.draw_networkx_nodes(subgraph,pos,
+			node_size=[subgraph.degree[node]*10 for node in subgraph.nodes],
+			node_color=[langscolor[videos[node].channel.lang if node in videos else '??'] for node in subgraph.nodes],
+		)
 
-	# Lang color
-	langscolor = {
-		'fr': '#22A',
-		'en': '#A33',
-		'es': '#AA3',
-		'ja': '#FFF',
-		'ko': '#A83',
-		'ar': '#333',
-		'de': '#883',
-		'??': '#888'
-	}
-	nx.draw_networkx_nodes(graph,pos,
-		node_size=[graph.degree[node]*10 for node in graph.nodes],
-		node_color=[langscolor[videos[node].channel.lang] for node in graph.nodes],
-	)
+		# Other's edges
+		edges_to_draw = [e for e in subgraph.edges.data() if e[2]['cmps'] > 0 and not e[2]['cmp_by_me']]
+		nx.draw_networkx_edges(subgraph,pos,
+			edgelist=edges_to_draw,
+			width=[2*math.sqrt(e[2]['cmps']) for e in edges_to_draw],
+			edge_color='#779',
+		)
 
-	# Other's edges
-	edges_to_draw = [e for e in graph.edges.data() if e[2]['cmps'] > 1]
-	nx.draw_networkx_edges(graph,pos,
-		edgelist=edges_to_draw,
-		width=[2*math.sqrt(e[2]['cmps']) for e in edges_to_draw],
-		edge_color='#779',
-	)
+		# My edges
+		edges_to_draw = [e for e in subgraph.edges.data() if e[2]['cmp_by_me']]
+		nx.draw_networkx_edges(subgraph,pos,
+			edgelist=edges_to_draw,
+			width=0.5,
+			edge_color="#000",
+		)
 
-	# My edges
-	edges_to_draw = [e for e in graph.edges.data() if 'cmp_by_me' in e[2]]
-	nx.draw_networkx_edges(graph,pos,
-		edgelist=edges_to_draw,
-		width=1,
-		edge_color="#000",
-	)
+		# Recommended new edges
+		edges_to_draw = []
+		recom_nodes = set()
+		for e in subgraph.edges.data():
+			if e[2]['cmps'] == 0:
+				edges_to_draw.append(e)
+				recom_nodes.add(e[0])
+				recom_nodes.add(e[1])
 
-	# Recommended edges
-	edges_to_draw = [e for e in graph.edges.data() if e[2]['cmps'] == 0]
-	max_recom=max([e[2]['recom'] for e in edges_to_draw])
-	print('Recommending', len(edges_to_draw), 'comparisons')
-	nx.draw_networkx_edges(graph,pos,
-		edgelist=edges_to_draw,
-		width=[(0.5+ e[2]['recom']/max_recom) for e in edges_to_draw],
-		edge_color="#080",
-		alpha=[e[2]['recom']/max_recom for e in edges_to_draw],
-		style='dashed'
-	)
-	edges_to_draw.sort(key=lambda x: x[2]['recom'], reverse=True)
-	for edge in edges_to_draw[:5]:
-		print(edge[0], edge[1], f"{(100*edge[2]['recom']):0.2f}%")
+		nx.draw_networkx_edges(subgraph,pos,
+			edgelist=edges_to_draw,
+			width=1,
+			edge_color="#080",
+			style='dashed',
+		)
 
-	nx.draw_networkx_labels(graph,pos,
-		font_size=8,
-		font_color="#0008",
-		labels={node: videos[node].channel.name for node in graph.nodes}
-	)
-	plt.savefig("data/output/graph_All.png")
+		# Labels
+		nx.draw_networkx_labels(subgraph,pos,
+			font_size=8,
+			font_color="#0008",
+			labels={node: f"{videos[node].channel.name}\n{videos[node].title}" if node in recom_nodes else '' for node in subgraph.nodes}
+		)
+
+		# print(f"Saving {filename}...")
+
+		warnings.filterwarnings("ignore", category=UserWarning)
+		plt.savefig(filename)
+
+	fig = _prepare_image()
+	# pos = nx.circular_layout(subgraph)
+	pos = nx.random_layout(subgraph, seed=94)
+	# pos = nx.spectral_layout(subgraph, weight='cmps')
+
+	# t = time.time()
+	# pos = nx.fruchterman_reingold_layout(subgraph, pos = pos, weight='cmps')
+	# _do_graph(pos)
+	# print(f"Fruchterman Reingold in: {time.time() - t:0.3f}s")
+
+	# t = time.time()
+	# pos = radialized_layout(subgraph, full_graph=graph, pos=pos, weight='cmps')
+	# print(f"Radialized in: {time.time() - t:0.3f}s")
+	# _do_graph(pos, fig)
+
+	gen = ForceLayout(subgraph, pos=pos, weight=_inv_weights)
+	max_duration = 150 # seconds
+	i = 0
+	min_move=0.002
+	tension_min = np.inf
+	for frame in range(int(max_duration)):
+		refresh = time.time()
+		move = 0
+		tension = 0
+		while time.time() < refresh + 1:
+			m = gen.iterate(power=0.001, repulse_upper_bound=2, inertia_factor=0.8)
+			move = max(move, m[0])
+			tension = max(tension, m[1])
+			i += 1
+
+		if tension < tension_min:
+			_do_graph(gen.get_pos(), fig)
+			tension_min = tension
+		print(f"{i} iterations ({i/(frame+1):0.2f}ips) - m={move:0.3f} ({move/min_move:0.1f}x) tension={tension:0.5f}{'*' if tension == tension_min else ''}")
+		if move < min_move:
+			break
+
+	# Ends plt
+	plt.close()

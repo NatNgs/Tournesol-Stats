@@ -1,6 +1,6 @@
 import sys
 
-import scripts.basic_grapher2 as grph
+import scripts.grapher as grph
 import scripts.data_fetcher as fetcher
 
 if __name__ == '__main__':
@@ -31,6 +31,7 @@ if __name__ == '__main__':
 
 	# Print graph picture
 	date = input_dir.split('_')[-1][:8]
+
 	grph.draw_graph_to_file(graph, videos, f"data/output/graph_{target_user}_{date}.png")
 
 
