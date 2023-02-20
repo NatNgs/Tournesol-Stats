@@ -49,6 +49,7 @@ class ForceLayout():
 		# Inertia
 		self.dx = np.zeros((self.n,2))
 
+
 	def iterate(self,
 		power=0.001,
 		repulse_lower_bound=0.01,

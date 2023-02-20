@@ -108,21 +108,16 @@ def add_recommended_nodes(graph: nx.Graph, videos: dict[str, Video]):
 			already_relinked.add(path[1])
 			graph.add_edge(path[0], path[1], cmps=0, cmp_by_me=False)
 
-
-
-def __make_subgraph(graph: nx.Graph):
+def get_vids_by_me(graph: nx.Graph):
 	vids_to_show = set()
 	for edge in graph.edges.data():
 		if edge[2]['cmp_by_me']:
 			vids_to_show.add(edge[0])
 			vids_to_show.add(edge[1])
-	return nx.subgraph_view(graph, filter_node=lambda node: node in vids_to_show)
+	return vids_to_show
 
-def draw_graph_to_file(graph: nx.Graph, videos: dict[str, Video], filename: str):
+def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], filename: str):
 	print('Graphing...')
-
-	# Keep unwanted nodes
-	subgraph: nx.Graph = __make_subgraph(graph)
 
 	def _inv_weights(edge: dict[str, any]) -> float:
 		val = edge[2].get('cmps', 0)
@@ -154,22 +149,22 @@ def draw_graph_to_file(graph: nx.Graph, videos: dict[str, Video], filename: str)
 		# langscolor['??'] = '#888'
 		langscolor = {'??': '#888', 'fr': '#88F', 'en': '#F88'}
 
-		nx.draw_networkx_nodes(subgraph,pos,
-			node_size=[subgraph.degree[node]*10 for node in subgraph.nodes],
-			node_color=[langscolor[videos[node].channel.lang if node in videos else '??'] for node in subgraph.nodes],
+		nx.draw_networkx_nodes(graph,pos,
+			node_size=[graph.degree[node]*10 for node in graph.nodes],
+			node_color=[langscolor[videos[node].channel.lang if node in videos else '??'] for node in graph.nodes],
 		)
 
 		# Other's edges
-		edges_to_draw = [e for e in subgraph.edges.data() if e[2]['cmps'] > 0 and not e[2]['cmp_by_me']]
-		nx.draw_networkx_edges(subgraph,pos,
+		edges_to_draw = [e for e in graph.edges.data() if e[2]['cmps'] > 0 and not e[2]['cmp_by_me']]
+		nx.draw_networkx_edges(graph,pos,
 			edgelist=edges_to_draw,
 			width=[2*math.sqrt(e[2]['cmps']) for e in edges_to_draw],
 			edge_color='#779',
 		)
 
 		# My edges
-		edges_to_draw = [e for e in subgraph.edges.data() if e[2]['cmp_by_me']]
-		nx.draw_networkx_edges(subgraph,pos,
+		edges_to_draw = [e for e in graph.edges.data() if e[2]['cmp_by_me']]
+		nx.draw_networkx_edges(graph,pos,
 			edgelist=edges_to_draw,
 			width=0.5,
 			edge_color="#000",
@@ -178,13 +173,13 @@ def draw_graph_to_file(graph: nx.Graph, videos: dict[str, Video], filename: str)
 		# Recommended new edges
 		edges_to_draw = []
 		recom_nodes = set()
-		for e in subgraph.edges.data():
+		for e in graph.edges.data():
 			if e[2]['cmps'] == 0:
 				edges_to_draw.append(e)
 				recom_nodes.add(e[0])
 				recom_nodes.add(e[1])
 
-		nx.draw_networkx_edges(subgraph,pos,
+		nx.draw_networkx_edges(graph,pos,
 			edgelist=edges_to_draw,
 			width=1,
 			edge_color="#080",
@@ -192,10 +187,10 @@ def draw_graph_to_file(graph: nx.Graph, videos: dict[str, Video], filename: str)
 		)
 
 		# Labels
-		nx.draw_networkx_labels(subgraph,pos,
+		nx.draw_networkx_labels(graph,pos,
 			font_size=8,
 			font_color="#0008",
-			labels={node: f"{videos[node].channel.name}\n{videos[node].title}" if node in recom_nodes else '' for node in subgraph.nodes}
+			labels={node: f"{videos[node].channel.name}\n{videos[node].title}" if node in recom_nodes else '' for node in graph.nodes}
 		)
 
 		# print(f"Saving {filename}...")
@@ -205,7 +200,7 @@ def draw_graph_to_file(graph: nx.Graph, videos: dict[str, Video], filename: str)
 
 	fig = _prepare_image()
 	# pos = nx.circular_layout(subgraph)
-	pos = nx.random_layout(subgraph, seed=94)
+	# pos = nx.random_layout(subgraph, seed=94)
 	# pos = nx.spectral_layout(subgraph, weight='cmps')
 
 	# t = time.time()
@@ -218,10 +213,10 @@ def draw_graph_to_file(graph: nx.Graph, videos: dict[str, Video], filename: str)
 	# print(f"Radialized in: {time.time() - t:0.3f}s")
 	# _do_graph(pos, fig)
 
-	gen = ForceLayout(subgraph, pos=pos, weight=_inv_weights)
+	gen = ForceLayout(graph, pos=pos, weight=_inv_weights)
 	max_duration = 150 # seconds
 	i = 0
-	min_move=0.002
+	min_move=0.005
 	tension_min = np.inf
 	for frame in range(int(max_duration)):
 		refresh = time.time()
@@ -232,9 +227,12 @@ def draw_graph_to_file(graph: nx.Graph, videos: dict[str, Video], filename: str)
 			move = max(move, m[0])
 			tension = max(tension, m[1])
 			i += 1
+			if move < min_move/2:
+				break
 
 		if tension < tension_min:
-			_do_graph(gen.get_pos(), fig)
+			pos = gen.get_pos()
+			_do_graph(pos, fig)
 			tension_min = tension
 		print(f"{i} iterations ({i/(frame+1):0.2f}ips) - m={move:0.3f} ({move/min_move:0.1f}x) tension={tension:0.5f}{'*' if tension == tension_min else ''}")
 		if move < min_move:
@@ -242,3 +240,23 @@ def draw_graph_to_file(graph: nx.Graph, videos: dict[str, Video], filename: str)
 
 	# Ends plt
 	plt.close()
+
+	return pos
+
+
+def get_ordered_nodes(graph: nx.Graph):
+	nodes = list(get_vids_by_me(graph))
+
+	degrees = dict() # {node: (deg1, deg2, ...)}
+	for node in nodes:
+		degrees[node] = (
+			len(nx.descendants_at_distance(graph, node, 1)),
+			len(nx.descendants_at_distance(graph, node, 2)),
+			len(nx.descendants_at_distance(graph, node, 3))
+		)
+
+	nodes.sort(key=lambda n: degrees[n], reverse=True)
+
+	for node in nodes:
+		print(node, degrees[node])
+	return nodes
