@@ -4,7 +4,7 @@ import model.youtube_api as ytAPI
 from model.comparisons import ComparisonFile, ComparisonLine
 
 
-def _list_missing_video_data(target_user: str, input_dir: str, vid_to_ignore: set[str]):
+def _list_user_missing_video_data(target_user: str, input_dir: str, vid_to_ignore: set[str]):
 	missing_vids: set[str] = set()
 
 	def check_add_missing_vid(ldata: ComparisonLine):
@@ -53,19 +53,19 @@ def _fetch_missing_data(CHANNELS, VIDEOS, missing_vids):
 	save_new_channels_data(newchannels)
 	save_new_videos_data(newvideos)
 
-def do_fetch(input_dir: str, target_user: str):
+def fetch_by_user(input_dir: str, target_user: str) -> dict[str, Video]:
 	# Load all cached data
 	print('Loading channels data...')
 	CHANNELS = load_channels_data() # {cid: Channel}
-	print(len(CHANNELS), 'channels cached.')
+	print(len(CHANNELS), 'channels loaded from cache.')
 
 	print('Loading video data...')
 	VIDEOS = load_videos_data(CHANNELS) # {vid: Video}
-	print(len(VIDEOS), 'videos cached.')
+	print(len(VIDEOS), 'videos loaded from cache.')
 
 	# Find missing video ids
 	print('Finding missing video data...')
-	missing_vids = _list_missing_video_data(target_user, input_dir, VIDEOS.keys())
+	missing_vids = _list_user_missing_video_data(target_user, input_dir, VIDEOS.keys())
 	if missing_vids:
 		print('Found', len(missing_vids), 'video missing: Fetching...')
 		_fetch_missing_data(CHANNELS, VIDEOS, missing_vids)
@@ -74,4 +74,24 @@ def do_fetch(input_dir: str, target_user: str):
 	print(len(VIDEOS), 'videos and', len(CHANNELS), 'channels listed')
 
 	# Output
+	return VIDEOS
+
+def fetch_list(vid_list: list[str]) -> dict[str, Video]:
+	# Load all cached data
+	print('Loading channels data...')
+	CHANNELS = load_channels_data() # {cid: Channel}
+	print(len(CHANNELS), 'channels loaded from cache.')
+
+	print('Loading video data...')
+	VIDEOS = load_videos_data(CHANNELS) # {vid: Video}
+	print(len(VIDEOS), 'videos loaded from cache.')
+
+	# Find missing video ids
+	missing_vids = [vid for vid in vid_list if vid not in VIDEOS]
+	if missing_vids:
+		print('Found', len(missing_vids), 'video missing: Fetching...')
+		#_fetch_missing_data(CHANNELS, VIDEOS, missing_vids)
+
+	print(len(VIDEOS), 'videos and', len(CHANNELS), 'channels listed')
+
 	return VIDEOS

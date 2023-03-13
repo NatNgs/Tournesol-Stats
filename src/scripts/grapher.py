@@ -1,3 +1,4 @@
+import colorsys
 import math
 import warnings
 import matplotlib.pyplot as plt
@@ -117,7 +118,7 @@ def get_vids_by_me(graph: nx.Graph):
 	return vids_to_show
 
 def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], filename: str):
-	print('Graphing...')
+	print('Drawing', graph)
 
 	def _inv_weights(edge: dict[str, any]) -> float:
 		val = edge[2].get('cmps', 0)
@@ -132,7 +133,7 @@ def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], fil
 		plt.tight_layout()
 		plt.rc('axes', unicode_minus=False)
 
-		return plt.figure(figsize=(10, 10), frameon=False)
+		return plt.figure(figsize=(20, 20), frameon=False)
 
 	def _do_graph(pos, fig):
 		fig.clear()
@@ -140,14 +141,13 @@ def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], fil
 		# ax.axis('off')
 		ax.set_facecolor('#FFF') # Background color
 
-		# Lang color
-		# langs = list({videos[node].channel.lang for node in graph.nodes if node in videos})
-		# if '??' in langs:
-		# 	langs.remove('??')
-		# nblangs = len(langs)
-		# langscolor = {langs[i]: colorsys.hsv_to_rgb(i/nblangs, .9, .9) for i in range(nblangs)}
-		# langscolor['??'] = '#888'
-		langscolor = {'??': '#888', 'fr': '#88F', 'en': '#F88'}
+		# Lang color
+		langs = list({videos[node].channel.lang for node in graph.nodes if node in videos})
+		if '??' in langs:
+			langs.remove('??')
+		nblangs = len(langs)
+		langscolor = {langs[i]: colorsys.hsv_to_rgb(i/nblangs, .9, .9) for i in range(nblangs)}
+		langscolor['??'] = '#888'
 
 		nx.draw_networkx_nodes(graph,pos,
 			node_size=[graph.degree[node]*10 for node in graph.nodes],
@@ -159,7 +159,7 @@ def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], fil
 		nx.draw_networkx_edges(graph,pos,
 			edgelist=edges_to_draw,
 			width=[2*math.sqrt(e[2]['cmps']) for e in edges_to_draw],
-			edge_color='#779',
+			edge_color='#7791',
 		)
 
 		# My edges
@@ -227,15 +227,17 @@ def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], fil
 			move = max(move, m[0])
 			tension = max(tension, m[1])
 			i += 1
-			if move < min_move/2:
+			if move <= min_move/2:
 				break
 
+		print(f"{i} iterations ({i/(frame+1):0.2f}ips) - m={move:0.3f} ({move/min_move:0.1f}x) tension={tension:0.5f}{'*' if tension < tension_min else ''}")
 		if tension < tension_min:
 			pos = gen.get_pos()
 			_do_graph(pos, fig)
 			tension_min = tension
-		print(f"{i} iterations ({i/(frame+1):0.2f}ips) - m={move:0.3f} ({move/min_move:0.1f}x) tension={tension:0.5f}{'*' if tension == tension_min else ''}")
-		if move < min_move:
+		elif move <= min_move:
+			break
+		if move < min_move/2:
 			break
 
 	# Ends plt
@@ -256,7 +258,4 @@ def get_ordered_nodes(graph: nx.Graph):
 		)
 
 	nodes.sort(key=lambda n: degrees[n], reverse=True)
-
-	for node in nodes:
-		print(node, degrees[node])
 	return nodes
