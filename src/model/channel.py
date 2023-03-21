@@ -1,3 +1,6 @@
+from pathlib import Path
+
+
 FILE_LOCATION = 'data/cache/channel_info.tsv'
 
 class Channel:
@@ -31,7 +34,10 @@ def load_channels_data():
 
 def save_new_channels_data(channels: dict[str, Channel]):
 	# channelid \t lang \t channelname
-	file = open(FILE_LOCATION, 'a', encoding='utf-8')
+
+	# Create it if not exists yet
+	Path(FILE_LOCATION).parent.mkdir(parents=True, exist_ok=True)
+	file = open(FILE_LOCATION, 'a+', encoding='utf-8')
 
 	ordered = list(channels.values())
 	ordered.sort(key=lambda c: (c.lang, c.id))

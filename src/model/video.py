@@ -1,3 +1,4 @@
+from pathlib import Path
 from model.channel import Channel
 
 FILE_LOCATION = 'data/cache/video_info.tsv'
@@ -33,7 +34,9 @@ def load_videos_data(channels: dict[str, Channel]):
 
 def save_new_videos_data(videos: dict[str, Video]):
 	# channel_id \t video_id \t title
-	file = open(FILE_LOCATION, 'a', encoding='utf-8')
+
+	Path(FILE_LOCATION).parent.mkdir(parents=True, exist_ok=True)
+	file = open(FILE_LOCATION, 'a+', encoding='utf-8')
 
 	ordered = list(videos.values())
 	ordered.sort(key=lambda c: (c.channel.lang, c.channel.id, c.id))

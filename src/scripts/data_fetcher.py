@@ -25,12 +25,17 @@ def _fetch_missing_data(CHANNELS, VIDEOS, missing_vids):
 	youtube = ytAPI.get_connection()
 	data = []
 
-	for i in range(0, len(missing_vids), ytAPI.INCREMENT):
-		request = youtube.videos().list(
-			part="id,snippet", # Information to get
-			id= ','.join(missing_vids[i:i+ytAPI.INCREMENT]) # vid to get
-		)
-		data.extend(request.execute()['items'])
+	try:
+		for i in range(0, len(missing_vids), ytAPI.INCREMENT):
+			print(f"Fetching {i}/{len(missing_vids)}...")
+			request = youtube.videos().list(
+				part="id,snippet", # Information to get
+				id= ','.join(missing_vids[i:i+ytAPI.INCREMENT]) # vid to get
+			)
+			data.extend(request.execute()['items'])
+	except:
+		print('Fetch failed.')
+		pass
 
 	#
 	# Parsing youtube data output
@@ -70,28 +75,24 @@ def fetch_by_user(input_dir: str, target_user: str) -> dict[str, Video]:
 		print('Found', len(missing_vids), 'video missing: Fetching...')
 		_fetch_missing_data(CHANNELS, VIDEOS, missing_vids)
 
-	print('No more video data to fetch')
 	print(len(VIDEOS), 'videos and', len(CHANNELS), 'channels listed')
 
 	# Output
 	return VIDEOS
 
-def fetch_list(vid_list: list[str]) -> dict[str, Video]:
+def fetch_list(vid_list: list[str], onlyCached=False) -> dict[str, Video]:
 	# Load all cached data
-	print('Loading channels data...')
 	CHANNELS = load_channels_data() # {cid: Channel}
-	print(len(CHANNELS), 'channels loaded from cache.')
+	print('Loaded', len(CHANNELS), 'channels from cache.')
 
-	print('Loading video data...')
 	VIDEOS = load_videos_data(CHANNELS) # {vid: Video}
-	print(len(VIDEOS), 'videos loaded from cache.')
+	print('Loaded', len(VIDEOS), 'videos from cache.')
 
 	# Find missing video ids
 	missing_vids = [vid for vid in vid_list if vid not in VIDEOS]
-	if missing_vids:
+	if not onlyCached and missing_vids:
 		print('Found', len(missing_vids), 'video missing: Fetching...')
-		#_fetch_missing_data(CHANNELS, VIDEOS, missing_vids)
-
-	print(len(VIDEOS), 'videos and', len(CHANNELS), 'channels listed')
+		_fetch_missing_data(CHANNELS, VIDEOS, missing_vids)
+		print(len(VIDEOS), 'videos and', len(CHANNELS), 'channels listed')
 
 	return VIDEOS
