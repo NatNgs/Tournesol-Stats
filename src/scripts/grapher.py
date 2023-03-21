@@ -1,16 +1,19 @@
 import colorsys
 import math
 import warnings
+import matplotlib
+from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import networkx as nx
 import time
-
-import numpy as np
 
 from model.comparisons import ComparisonFile, ComparisonLine
 from model.video import Video
 from scripts.nxlayouts import radialized_layout
 from scripts.force_directed_graph import ForceLayout
+
+matplotlib.use("svg")
+
 
 def build_graph(input_dir: str, target_user: str):
 	graph = nx.Graph()
@@ -103,7 +106,7 @@ def add_recommended_nodes(graph: nx.Graph, videos: dict[str, Video]):
 	print('\nRecommending:')
 	already_relinked = set()
 	for path in paths:
-		if not (path[0] in already_relinked or path[1] in already_relinked):
+		if path[0] in videos and path[1] in videos and not (path[0] in already_relinked or path[1] in already_relinked):
 			print(f"{videos[path[0]]}\n{videos[path[1]]}\n")
 			already_relinked.add(path[0])
 			already_relinked.add(path[1])
@@ -117,8 +120,18 @@ def get_vids_by_me(graph: nx.Graph):
 			vids_to_show.add(edge[1])
 	return vids_to_show
 
-def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], filename: str):
-	print('Drawing', graph)
+def optimize_graph_pos(graph: nx.Graph, pos: dict, max_duration: int):
+	# pos = nx.circular_layout(subgraph)
+	# pos = nx.random_layout(subgraph, seed=94)
+	# pos = nx.spectral_layout(subgraph, weight='cmps')
+
+	# t = time.time()
+	# pos = nx.fruchterman_reingold_layout(subgraph, pos = pos, weight='cmps')
+	# print(f"Fruchterman Reingold in: {time.time() - t:0.3f}s")
+
+	# t = time.time()
+	# pos = radialized_layout(subgraph, full_graph=graph, pos=pos, weight='cmps')
+	# print(f"Radialized in: {time.time() - t:0.3f}s")
 
 	def _inv_weights(edge: dict[str, any]) -> float:
 		val = edge[2].get('cmps', 0)
@@ -126,19 +139,54 @@ def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], fil
 			return None
 		return 1/val
 
+	gen = ForceLayout(graph, pos=pos, weight=_inv_weights)
+	i = 0
+	min_move=0.005
+	begin = time.time()
+	while True:
+		refresh = time.time()
+		if refresh > begin + max_duration:
+			print(f"{max_duration}s elapsed: stopped !")
+			break
+
+		move = 0
+		while time.time() < refresh + 1:
+			m = gen.iterate2(time_factor=0.001, repulse_upper_bound=2, inertia_factor=0.7)
+			move = max(move, m)
+			i += 1
+			if move <= min_move/2:
+				print('No much movement: stopped !')
+				break
+
+		elapsed = time.time()-begin
+		print(f"{i} iterations/{elapsed:.1f}s ({i/(elapsed):0.2f}ips) - move:{move/min_move:0.1f}")
+		if move < min_move:
+			print('No much movement: stopped !')
+			break
+
+	return gen.get_pos()
+
+
+def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], filename: str):
+	print('Drawing', graph)
+
 	def _prepare_image():
+
 		# Prepare graph
 		plt.box(False)
 		plt.clf()
 		plt.tight_layout()
+		plt.rcParams['svg.fonttype'] = 'none'
 		plt.rc('axes', unicode_minus=False)
 
-		return plt.figure(figsize=(20, 20), frameon=False)
+		size = math.sqrt(graph.number_of_nodes()+1)
+		print(f"Image size: {size*1.4+1:.1f}x{size+1:.1f}")
+		return plt.figure(figsize=(size*1.4+1, size+1), frameon=False)
 
-	def _do_graph(pos, fig):
+	def _do_graph(pos, fig: Figure):
 		fig.clear()
-		ax = fig.add_axes([0, 0, 1, 1])
-		# ax.axis('off')
+		ax = fig.add_axes([0, 0, 1, 1]) #  ,polar = True
+		ax.axis('off')
 		ax.set_facecolor('#FFF') # Background color
 
 		# Lang color
@@ -190,60 +238,20 @@ def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], fil
 		nx.draw_networkx_labels(graph,pos,
 			font_size=8,
 			font_color="#0008",
-			labels={node: f"{videos[node].channel.name}\n{videos[node].title}" if node in recom_nodes else '' for node in graph.nodes}
+			labels={node: f"{videos[node].channel.name}\n{videos[node].title}" if node in recom_nodes else '' for node in graph.nodes},
+			ax=ax,
 		)
 
-		# print(f"Saving {filename}...")
+		print(f"Saving {filename}...")
 
 		warnings.filterwarnings("ignore", category=UserWarning)
+
 		plt.savefig(filename)
 
-	fig = _prepare_image()
-	# pos = nx.circular_layout(subgraph)
-	# pos = nx.random_layout(subgraph, seed=94)
-	# pos = nx.spectral_layout(subgraph, weight='cmps')
-
-	# t = time.time()
-	# pos = nx.fruchterman_reingold_layout(subgraph, pos = pos, weight='cmps')
-	# _do_graph(pos)
-	# print(f"Fruchterman Reingold in: {time.time() - t:0.3f}s")
-
-	# t = time.time()
-	# pos = radialized_layout(subgraph, full_graph=graph, pos=pos, weight='cmps')
-	# print(f"Radialized in: {time.time() - t:0.3f}s")
-	# _do_graph(pos, fig)
-
-	gen = ForceLayout(graph, pos=pos, weight=_inv_weights)
-	max_duration = 150 # seconds
-	i = 0
-	min_move=0.005
-	tension_min = np.inf
-	for frame in range(int(max_duration)):
-		refresh = time.time()
-		move = 0
-		tension = 0
-		while time.time() < refresh + 1:
-			m = gen.iterate(power=0.001, repulse_upper_bound=2, inertia_factor=0.8)
-			move = max(move, m[0])
-			tension = max(tension, m[1])
-			i += 1
-			if move <= min_move/2:
-				break
-
-		print(f"{i} iterations ({i/(frame+1):0.2f}ips) - m={move:0.3f} ({move/min_move:0.1f}x) tension={tension:0.5f}{'*' if tension < tension_min else ''}")
-		if tension < tension_min:
-			pos = gen.get_pos()
-			_do_graph(pos, fig)
-			tension_min = tension
-		elif move <= min_move:
-			break
-		if move < min_move/2:
-			break
+	_do_graph(pos, _prepare_image())
 
 	# Ends plt
 	plt.close()
-
-	return pos
 
 
 def get_ordered_nodes(graph: nx.Graph):

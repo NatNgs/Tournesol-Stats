@@ -1,3 +1,4 @@
+import random
 import sys
 import networkx as nx
 import numpy as np
@@ -39,10 +40,12 @@ if __name__ == '__main__':
 
 	pos = {}
 	for nb in range(1, len(nodes_order)):
-		pos[nodes_order[nb-1]] = [(-1 if (nb % 2) < 1 else 1)*np.sqrt(nb), (-1 if (nb % 4) < 2 else 1)*np.sqrt(nb)]
-		# if nb % 4 == 0:
-		# 	subgraph = nx.subgraph_view(graph, filter_node=lambda node: node in pos)
-		# 	pos = grph.draw_graph_to_file(subgraph, pos, videos, f"data/output/graph_{target_user}_{date}.png")
+		pos[nodes_order[nb-1]] = [random.random(), random.random()]
+		# subgraph = nx.subgraph_view(graph, filter_node=lambda node: node in pos)
+		# print(f"\t### {nb}/{len(nodes_order)} nodes ###")
+		# pos = grph.optimize_graph_pos(subgraph, pos, nb)
+		# grph.draw_graph_to_file(subgraph, pos, videos, f"data/output/graph_{target_user}_{date}.svg")
 
 	subgraph = nx.subgraph_view(graph, filter_node=lambda node: node in pos)
-	pos = grph.draw_graph_to_file(subgraph, pos, videos, f"data/output/graph_{target_user}_{date}.png")
+	pos = grph.optimize_graph_pos(subgraph, pos, 600)
+	grph.draw_graph_to_file(subgraph, pos, videos, f"data/output/graph_{target_user}_{date}.svg")

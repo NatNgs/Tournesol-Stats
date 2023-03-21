@@ -7,10 +7,18 @@ This implementation is done using GraphX.
 """
 
 class ForceLayout():
+	'''
+	self.G: nx.Graph
+	self.n: int (number of nodes)
+	self.nodes: list(nx.NodeView) ([node1, ...])
+	self.x: list[list[int, int]] ([[x, y], ...])
+	self.dx: list[list[int, int]] ([[dx, dy], ...])
+	'''
+
 	def __init__(self,
 		G: nx.Graph,
 		weight: str or Callable[[str, str, dict[str, any]], float or None]=None,
-		pos=None
+		pos=None,
 	):
 		"""A simple approach to force-directed graph layout.
 
@@ -50,7 +58,48 @@ class ForceLayout():
 		self.dx = np.zeros((self.n,2))
 
 
-	def iterate(self,
+	def iterate2(self,
+		time_factor=0.001,
+		repulse_lower_bound=0.01,
+		repulse_upper_bound=np.inf,
+		inertia_factor=0.1
+	):
+		self.dx *= inertia_factor
+
+		for i in range(1,self.n):
+			ni = self.nodes[i]
+			for j in range(0,i):
+				nj = self.nodes[j]
+
+				vector_ji = (self.x[i] - self.x[j]) # the vector from xj to xi
+				current_d = np.linalg.norm(vector_ji) # distance
+				if current_d < repulse_lower_bound: # prevent divide 0
+					current_d = repulse_lower_bound
+
+				# Apply repulsion
+				if current_d < repulse_upper_bound:
+					repulsion = vector_ji*time_factor/(current_d*current_d)
+					self.dx[i] += repulsion
+					self.dx[j] -= repulsion
+
+				# Apply spring force
+				if self.G.has_edge(ni, nj):
+					desired_d = self.G.get_edge_data(ni, nj)['fdg_d']
+					if not desired_d:
+						continue
+
+					vector_ji = (self.x[i] - self.x[j]) # the vector from xj to xi
+
+					attraction = time_factor * (desired_d - current_d) * vector_ji
+					self.dx[i] += attraction
+					self.dx[j] -= attraction
+
+		# Apply forces
+		self.x += self.dx
+		return np.linalg.norm(self.dx)
+
+
+	def iterate1(self,
 		power=0.001,
 		repulse_lower_bound=0.01,
 		repulse_upper_bound=np.inf,
@@ -103,9 +152,9 @@ class ForceLayout():
 						self.dx[j] -= force
 						total_tension += np.linalg.norm(force)
 
-		# the key line: move x according to the summed forces dx
+		# Apply forces
 		self.x += self.dx
-		return [np.linalg.norm(self.dx), total_tension]
+		return np.linalg.norm(self.dx)
 
 	def get_pos(self):
 		return {self.nodes[i]: self.x[i] for i in range(len(self.nodes))}
