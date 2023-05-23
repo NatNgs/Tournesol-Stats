@@ -2,7 +2,7 @@ import sys
 
 import numpy as np
 from model.comparisons import ComparisonFile, ComparisonLine
-import scripts.data_fetcher as data_fetcher
+from model.youtube_api import YTData
 
 def _print_statistics(nb_comps: dict[str, dict[str, int]]):
 	# Aggregate
@@ -31,13 +31,19 @@ def _print_statistics(nb_comps: dict[str, dict[str, int]]):
 			cumulated_nbcomp.pop(-1)
 
 		# nbusers = nbcomparisons
-		keys = list(nbcomp_criteria.keys())
-		keys.sort(reverse=True)
+		keys = sorted(nbcomp_criteria.keys(), reverse=True)
 		rnk = 0
 		same_rnk = 0
-		while same_rnk < keys[rnk]:
-			same_rnk = same_rnk + nbcomp_criteria[keys[rnk]]
-			rnk = rnk + 1
+		try:
+			while same_rnk < keys[rnk]:
+				same_rnk = same_rnk + (nbcomp_criteria.get(keys[rnk], 0))
+				rnk += 1
+		except IndexError as e:
+			print(keys)
+			print(rnk)
+			print(same_rnk)
+			raise e
+
 
 		print(criteria, f"(over {itemcount})")
 
@@ -96,7 +102,12 @@ def get_creators_stats(cmpFile: ComparisonFile, ignore_users: list[str]):
 		vids.add(line.vid1)
 		vids.add(line.vid2)
 	cmpFile.foreach(_video_lister)
-	VIDEOS = data_fetcher.fetch_list(vids)
+	YTDATA = YTData()
+	try:
+		YTDATA.load('data/YTData_cache.json')
+	except FileNotFoundError:
+		pass
+	YTDATA.update(vids, save='data/YTData_cache.json')
 
 	def _line_parser(line: ComparisonLine):
 		if line.user in ignore_users:
@@ -106,12 +117,17 @@ def get_creators_stats(cmpFile: ComparisonFile, ignore_users: list[str]):
 			nb_comparisons_by_channel[line.criteria] = dict()
 
 		for vid in [line.vid1, line.vid2]:
-			if vid in VIDEOS:
-				channel = VIDEOS[vid].channel
-				if not channel.name in nb_comparisons_by_channel[line.criteria]:
-					nb_comparisons_by_channel[line.criteria][channel.name] = 1
-				else:
-					nb_comparisons_by_channel[line.criteria][channel.name] += 1
+			if not vid in YTDATA.videos:
+				continue
+			if not YTDATA.videos[vid].channel:
+				continue
+
+			channel = YTDATA.videos[vid].channel
+			cname = channel['name'] or channel.id
+			if not cname in nb_comparisons_by_channel[line.criteria]:
+				nb_comparisons_by_channel[line.criteria][cname] = 1
+			else:
+				nb_comparisons_by_channel[line.criteria][cname] += 1
 	cmpFile.foreach(_line_parser)
 
 	_print_statistics(nb_comparisons_by_channel)
@@ -156,7 +172,7 @@ if __name__ == '__main__':
 		print(f"""Usage: $ {sys.argv[0]} <dataDir> (<prefUser>)
 	dataDir:
 		Directory where the public dataset is located
-		(ex: /data/input/tournesol_export_2023mmddThhmmssZ)
+		(ex: data/input/tournesol_dataset)
 	prefUser: (Optional)
 		User from whom get user specific statistics
 		(ex: NatNgs)

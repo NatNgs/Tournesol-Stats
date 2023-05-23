@@ -1,10 +1,8 @@
 import sys
-
-import numpy as np
-from model.channel import Channel
 from model.comparisons import ComparisonFile, ComparisonLine
-import scripts.data_fetcher as data_fetcher
 import networkx as nx
+
+from model.youtube_api import YTData
 
 def recom(user: str, cmp_file: ComparisonFile, langs: set[str]):
 	# Separate videos rated by me from others
@@ -49,20 +47,28 @@ def recom(user: str, cmp_file: ComparisonFile, langs: set[str]):
 	validated_users.clear()
 	print(graph)
 
+	YTDATA = YTData()
+	try:
+		YTDATA.load('data/YTData_cache.json')
+	except FileNotFoundError:
+		pass
+	YTDATA.update(users_vids | vid_to_recommend, save='data/YTData_cache.json')
 
 	# Exclude videos not in VIDEOS list
-	VIDEOS = data_fetcher.fetch_list(users_vids | vid_to_recommend) # vid: Video
+	vids = set(YTDATA.videos.keys())
+
 	lngth_before = len(vid_to_recommend)
-	to_remove = vid_to_recommend.difference(VIDEOS.keys())
+	to_remove = vid_to_recommend.difference(vids)
 	graph.remove_nodes_from(to_remove)
-	vid_to_recommend.intersection_update(VIDEOS.keys())
+	vid_to_recommend.intersection_update(vids)
 	print(f"Removed {lngth_before-len(vid_to_recommend)} videos not found by youtube fetch")
 
-
-	# Exclude videos from channel not in known language
+	# Exclude videos not in known language
 	lngth_before = len(vid_to_recommend)
+	print(lngth_before, 'remaining')
 	for vid in list(vid_to_recommend):
-		if VIDEOS[vid].channel.lang not in langs:
+		lang = set(YTDATA.videos[vid]['localizations'] or [])
+		if not lang or not lang.intersection(langs):
 			graph.remove_node(vid)
 			vid_to_recommend.remove(vid)
 	print(f"Removed {lngth_before-len(vid_to_recommend)} videos from channel not in accepted languages")
@@ -75,19 +81,20 @@ def recom(user: str, cmp_file: ComparisonFile, langs: set[str]):
 	degree_list_to_remove = degree_list[:cut]
 	degree_list = degree_list[cut:]
 	lngth_before = len(vid_to_recommend)
+	print(lngth_before, 'remaining')
 	for tpl in degree_list_to_remove:
 		vid_to_recommend.remove(tpl[0])
 		graph.remove_node(tpl[0])
 	print(f"Removed {lngth_before-len(vid_to_recommend)} videos having degree of {degree_list[0][1]} or more")
 
 	# Exclude top 80% channels (by recommendation nb)
-	vids_by_channel: dict[Channel, list[str]] = dict()
-	channel_degrees: dict[Channel, int] = dict()
+	vids_by_channel: dict[str, list[str]] = dict()
+	channel_degrees: dict[str, int] = dict()
 	for tpl in degree_list:
-		channel = VIDEOS[tpl[0]].channel
+		channel = YTDATA.videos[tpl[0]].get('cid', None)
 		vids_by_channel.setdefault(channel, list()).append(tpl[0])
 		channel_degrees[channel] = channel_degrees.get(channel, 0) + tpl[1]
-	channel_degrees_list: list[tuple[Channel, int]] = [(channel, channel_degrees[channel]) for channel in channel_degrees]
+	channel_degrees_list: list[tuple[str, int]] = [(channel, channel_degrees[channel]) for channel in channel_degrees]
 	channel_degrees_list.sort(key=lambda tpl: tpl[1], reverse=True)
 	cut = int(len(channel_degrees_list)*.2)
 	degree_list_to_remove = channel_degrees_list[:cut]
@@ -129,14 +136,12 @@ def recom(user: str, cmp_file: ComparisonFile, langs: set[str]):
 	for rec in all_recoms:
 		if rec[0] in already_recommended or rec[1] in already_recommended:
 			continue
-		print(f"Recommending to watch {VIDEOS[rec[0]]}\n\tto compare with {VIDEOS[rec[1]]}\n")
+		print(f"Recommending to watch {YTDATA.videos[rec[0]]}\n\tto compare with {YTDATA.videos[rec[1]]}\n")
 		i+=1
 		if i > 10:
 			break
 		already_recommended.add(rec[0])
 		already_recommended.add(rec[1])
-
-
 
 
 if __name__ == '__main__':

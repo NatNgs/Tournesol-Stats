@@ -1,11 +1,50 @@
 # Tournesol-Stats
 A collection of tools to visualize and explore the tournesol.app public dataset.
 
-Open source project: feel free to reuse any part (more details in LICENSE.txt)
+## General Setup
 
-## Graphing tool
+### Python
 
-Create a graph, as a .png file, representing the user's comparisons.
+These scripts runs with Python version 3.
+
+Development uses Python version 3.9.5, previous versions may also work (not tested).
+
+Some dependencies may be needed to be installed to run the project prior to its execution.
+
+(TODO: Automatic setup)
+
+### API Key configuration
+
+These scripts uses Youtube API to process data, and need to acces an API Key to work.
+The API Key will be found in `~/Documents/YT_API_KEY.txt` file (currently hardcoded into the scripts, this very path is mandatory, or change the source according to your preferred location)
+
+
+Create a file in `TournesolStats/data/YT_API_KEY.txt`, and paste your youtube API key in (TODO: document how to find the YT API key)
+
+(For comparison, this readme you're reading is: `TournesolStats/README.md`)
+
+
+For information, API consumption is low, and will cache all collected data (maximum is 1 request for every 50 video the user (parameter) compared)
+
+### Tournesol Data
+
+These scripts need tournesol public dataset, extracted into any directory on your computer. It will be needed to specify where this repository is to the script arguments (see "How to use" below).
+
+
+In the footer of [tournesol.app] website, there is a link to download the public dataset.
+
+Get the dataset (downloaded as a zip archive), and unzip-it anywhere you like on your computer.
+
+
+These scripts need the structure of the unzipped archive to be unchanged to work. Do not move or rename any file from the dataset.
+
+
+## Tools
+
+
+### Graphing tool ('graph.py')
+
+Create a graph, as a .svg file, representing the user's comparisons.
 
 - Videos are vertices
 	- Color depends on language (colors are ranomly selected)
@@ -14,53 +53,68 @@ Create a graph, as a .png file, representing the user's comparisons.
 	- Black edges are comparisons set by the given user
 	- Gray edges are comparisons set by other users (wider depending on how many users did the comparison)
 	- Green edges are recommended comparisons between seen videos
+		- recommended to best reduce the average distance between videos on the graph
 
-### Setup
+#### How to use
 
-#### Initiate folder structure
-
-The app will work on a specific directory you may need to create empty first:
-
-```
-- README.md (this file, for comparison)
-- data (directory to create)
-	|- YT_API_KEY.txt (see API key configuration below)
-	|- cache (directory to create, where youtube data will be cached)
-	|- output (directory to create, where output png pictures will be dropped)
-```
-
-#### API Key configuration
-Create a file in `TournesolStats/data/YT_API_KEY.txt`, and paste your youtube API key in (TODO: document how to find the YT API key)
-
-(For comparison, this readme you're reading is: `TournesolStats/README.md`)
-
-For information, API consumption is low, and will cache all collected data (maximum is 1 request for every 50 video the user (parameter) compared)
-
-#### Tournesol Data
-In the footer of [tournesol.app] website, there is a link to download the public dataset.
-
-Get the dataset (downloaded as a zip archive), and unzip-it anywhere you like on your computer.
-
-Keep the directory name (`tournesol_export_yyyymmddThhmmssZ`) and structure inside it unchanged, this script depends on it.
-
-
-### How to use
-
-`py src/main.py <public-dataset-dir> <user>`
+`py src/graph.py <public-dataset-dir> <yt-data-cache-file> <username>`
 
 Example:
-`py src/main.py ~/downloads/tournesol_export_20001231T235959Z NatNgs`
+`py src/main.py data/tournesol_dataset data/YTData_cache.json NatNgs`
 
-Will generate the output png file as `TournesolStats/data/output/graph_<username>_<date>.png` (e.g. `graph_NatNgs_20001231.png`)
+Can take about 10minutes (if user has a lot of comparisons) to generate (it will log progression every second)
+`35 iterations/4.2s (8.33ips) - move:63.8`
+- how many iterations has been done to optimize the graph disposition
+- how much time did it work
+- how many iterations per seconds it is optimizing
+- move: how much dit the last optimization modified the graph (big number = huge change, low number = almost no change)
 
-### Known Limitations
+Will generate the output png file as `TournesolStats/data/output/graph_<username>.svg` (e.g. `graph_NatNgs.svg`)
+
+
+#### Known Limitations
 
 - May not work as intended, or produce an unreadable picture for users with "not enough" or "too much" comparisons done (depends on your appreciation)
-- I expect it to take a longer time to compute for users with huge number of comparisons
-	- Some benchmarks:
-		- User with 80 videos & 150 comparisons: ~4s
-		- User with 2000 videos & 5000 comparisons: ~15s
 - Not supporting emojis and some symbols (will print squares instead) - may depend on your computer/execution environment
 - Non-perfect Recommendations: Does not take into account videos that have not been compared by the selected user
 	- A step of the algorithm computes the shortest distance between nodes, and result may be different with full dataset
 - No Unit test => May contain bugs
+
+### Tags Statistics ('tags_stats.py')
+
+Compute and print average Tournesol rating for every youtube videos tags present in the dataset
+
+#### How to use
+
+To run with default configuration:
+`py src/tags_stats.py`
+
+Show help for more personalized settings:
+`py src/tags_stats.py -h`
+
+### Random Statistics ('rnd_stats.py')
+
+Show various statistics from the dataset
+
+#### How to use
+
+`py src/rndstats.py <tournesol-dataset-dir> (<username>)`
+
+Example (to show only general statistics):
+`py src/rndstats.py data/input/tournesol_dataset`
+
+Example (to show also given user statistics):
+`py src/rndstats.py data/input/tournesol_dataset NatNgs`
+
+#### Setup
+
+Depends on file `data/YTData_cache.json` to be present, or will create it otherwise, using Youtube API Key located in `~/Documents/YT_API_KEY.txt`
+
+
+## LICENSE
+
+GNU AFFERO GENERAL PUBLIC LICENSE
+
+Permissions of this strongest copyleft license are conditioned on making available complete source code of licensed works and modifications, which include larger works using a licensed work, under the same license. Copyright and license notices must be preserved. Contributors provide an express grant of patent rights. When a modified version is used to provide a service over a network, the complete source code of the modified version must be made available.
+
+See LICENSE.txt file for details.

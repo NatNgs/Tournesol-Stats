@@ -8,7 +8,7 @@ import networkx as nx
 import time
 
 from model.comparisons import ComparisonFile, ComparisonLine
-from model.video import Video
+from model.youtube_api import Video, YTData
 from scripts.nxlayouts import radialized_layout
 from scripts.force_directed_graph import ForceLayout
 
@@ -80,7 +80,7 @@ def add_recommended_nodes(graph: nx.Graph, videos: dict[str, Video]):
 	print(f"(ignoring {len(nodes_degree)*(len(nodes_degree)-1) - len(nodes)*(len(nodes)-1)}/{len(nodes_degree)*(len(nodes_degree)-1)} ({(len(nodes_degree)*(len(nodes_degree)-1) - len(nodes)*(len(nodes)-1))/(len(nodes_degree)*(len(nodes_degree)-1)):0.1%}) operations)")
 
 	max_max_min = 0
-	paths = []
+	paths: list[tuple[str, str]] = []
 	for node1 in nodes:
 		shrt_paths = dict() # {target: shortestpath}
 		for node2 in nodes:
@@ -190,7 +190,7 @@ def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], fil
 		ax.set_facecolor('#FFF') # Background color
 
 		# Lang color
-		langs = list({videos[node].channel.lang for node in graph.nodes if node in videos})
+		langs = list({(videos[node]['defaultLng'] or '??') for node in graph.nodes if node in videos})
 		if '??' in langs:
 			langs.remove('??')
 		nblangs = len(langs)
@@ -198,8 +198,8 @@ def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], fil
 		langscolor['??'] = '#888'
 
 		nx.draw_networkx_nodes(graph,pos,
-			node_size=[graph.degree[node]*10 for node in graph.nodes],
-			node_color=[langscolor[videos[node].channel.lang if node in videos else '??'] for node in graph.nodes],
+			node_size=[n[1] for n in graph.nodes(data='cmps')],
+			node_color=[langscolor[videos[node]['defaultLng'] if node in videos else '??'] for node in graph.nodes],
 		)
 
 		# Other's edges
@@ -207,7 +207,7 @@ def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], fil
 		nx.draw_networkx_edges(graph,pos,
 			edgelist=edges_to_draw,
 			width=[2*math.sqrt(e[2]['cmps']) for e in edges_to_draw],
-			edge_color='#7791',
+			edge_color='#7794',
 		)
 
 		# My edges
@@ -238,7 +238,7 @@ def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], fil
 		nx.draw_networkx_labels(graph,pos,
 			font_size=8,
 			font_color="#0008",
-			labels={node: f"{videos[node].channel.name}\n{videos[node].title}" if node in recom_nodes else '' for node in graph.nodes},
+			labels={node: f"{videos[node].channel}\n{videos[node]['title']}" if node in recom_nodes else '' for node in graph.nodes},
 			ax=ax,
 		)
 
