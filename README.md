@@ -80,6 +80,32 @@ Will generate the output png file as `TournesolStats/data/output/graph_<username
 	- A step of the algorithm computes the shortest distance between nodes, and result may be different with full dataset
 - No Unit test => May contain bugs
 
+
+### Centrality ('centrality.py')
+
+Compute and display simple graph with various parameters
+
+- Nodes represents videos
+- Edges represents comparisons
+- Can filter (or not) on a specific user
+- Can filter (or not) on a specific date (will get only comparisons made after it)
+- Can compute nodes (videos) colors according to different data
+	- score : Tournesol largely_recommended score of the video (red->green for low->high score)
+	- degree : Number of others videos one has been compared to (red->green for few->many comparisons)
+	- distmax : Distance to the largest node (red->green for near->far)
+	- closeness : Closeness Centrality value of the node (see google)
+	- katz : Katz Centrality value of the node (see google)
+	- rndwalk : Betweenness Centrality value of the node (see google)
+
+#### How to use
+
+To run with default configuration:
+`py src/centrality.py`
+
+Show help for more personalized settings:
+`py src/centrality.py -h`
+
+
 ### Tags Statistics ('tags_stats.py')
 
 Compute and print average Tournesol rating for every youtube videos tags present in the dataset

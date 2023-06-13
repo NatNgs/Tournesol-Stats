@@ -1,3 +1,4 @@
+import argparse
 import sys
 
 import numpy as np
@@ -53,9 +54,11 @@ def _print_statistics(nb_comps: dict[str, dict[str, int]]):
 
 		print()
 
-def get_users_count_stats(cmpFile: ComparisonFile):
+def print_users_count_stats(cmpFile: ComparisonFile):
+	print("### Users Statistics ###")
 	nb_comparisons_by_user: dict[str, dict[str, int]] = dict() # Kind, user, count
 	nb_comparisons_by_user['OVERALL'] = dict()
+	users_videos: dict[str,set[str]] = dict()
 
 	def line_parser(line: ComparisonLine):
 		if not line.criteria in nb_comparisons_by_user:
@@ -71,12 +74,23 @@ def get_users_count_stats(cmpFile: ComparisonFile):
 		else:
 			nb_comparisons_by_user['OVERALL'][line.user] += 1
 
+		if not line.user in users_videos:
+			users_videos[line.user] = set()
+		users_videos[line.user].add(line.vid1)
+		users_videos[line.user].add(line.vid2)
+
+
 	cmpFile.foreach(line_parser)
 	_print_statistics(nb_comparisons_by_user)
 
-	return [user for user in nb_comparisons_by_user['largely_recommended'] if nb_comparisons_by_user['largely_recommended'][user] <= 1]
+	topusers = sorted(nb_comparisons_by_user['OVERALL'].keys(), key=nb_comparisons_by_user['OVERALL'].get, reverse=True)
+	print('Top 100 users (by Overall comparisons count):')
+	for i,u in enumerate(topusers[:100]):
+		print(f"-{i+1:3d}. {u} ({len(users_videos[u])} videos / {nb_comparisons_by_user['largely_recommended'][u]} recommendations / {nb_comparisons_by_user['OVERALL'][u]} comparisons)")
 
-def get_videos_count_stats(cmpFile: ComparisonFile):
+
+def print_videos_count_stats(cmpFile: ComparisonFile):
+	print("### Videos Statistics ###")
 	nb_comparisons_by_video: dict[str, dict[str, int]] = dict() # Kind, video, count
 
 	def line_parser(line: ComparisonLine):
@@ -92,34 +106,27 @@ def get_videos_count_stats(cmpFile: ComparisonFile):
 	cmpFile.foreach(line_parser)
 	_print_statistics(nb_comparisons_by_video)
 
-def get_creators_stats(cmpFile: ComparisonFile, ignore_users: list[str]):
+def print_creators_stats(cmpFile: ComparisonFile, YTDATA: YTData, fetchunknown: bool):
+	print("### Channels Statistics ###")
 	nb_comparisons_by_channel: dict[str, dict[str, int]] = dict() # Kind, channel, count
-	vids = set()
 
+	vids = set()
 	def _video_lister(line: ComparisonLine):
-		if line.user in ignore_users:
-			return
 		vids.add(line.vid1)
 		vids.add(line.vid2)
 	cmpFile.foreach(_video_lister)
-	YTDATA = YTData()
-	try:
-		YTDATA.load('data/YTData_cache.json')
-	except FileNotFoundError:
-		pass
-	YTDATA.update(vids, save='data/YTData_cache.json')
 
+	if fetchunknown:
+		YTDATA.update(vids, save='data/YTData_cache.json')
+
+	unknownvid = set()
 	def _line_parser(line: ComparisonLine):
-		if line.user in ignore_users:
-			return
-
 		if not line.criteria in nb_comparisons_by_channel:
 			nb_comparisons_by_channel[line.criteria] = dict()
 
 		for vid in [line.vid1, line.vid2]:
-			if not vid in YTDATA.videos:
-				continue
-			if not YTDATA.videos[vid].channel:
+			if not vid in YTDATA.videos or not YTDATA.videos[vid].channel:
+				unknownvid.add(vid)
 				continue
 
 			channel = YTDATA.videos[vid].channel
@@ -130,10 +137,23 @@ def get_creators_stats(cmpFile: ComparisonFile, ignore_users: list[str]):
 				nb_comparisons_by_channel[line.criteria][cname] += 1
 	cmpFile.foreach(_line_parser)
 
+	if unknownvid:
+		print(f"  Analysed: {len(vids) - len(unknownvid)}/{len(vids)} videos (Some data missing from YTData cache)")
+
 	_print_statistics(nb_comparisons_by_channel)
 
 
-def get_user_specific_stats(cmpFile: ComparisonFile, user: str):
+def print_global_stats(cmpFile: ComparisonFile, cache: YTData, fetchunknown: bool):
+	print_users_count_stats(cmpFile)
+	print
+	print_videos_count_stats(cmpFile)
+	print
+	print_creators_stats(cmpFile, cache, fetchunknown)
+	print
+
+
+def print_user_specific_stats(cmpFile: ComparisonFile, user: str):
+	print(f"### {args['user']} Statistics ###")
 	criteria_values: dict[str, list[int]] = dict() # {criteria: [<int>, .. (index=10)<int>]}
 
 	def line_parser(line: ComparisonLine):
@@ -165,37 +185,29 @@ def get_user_specific_stats(cmpFile: ComparisonFile, user: str):
 
 	print('\n')
 
-if __name__ == '__main__':
-	# Unload parameters
-	if len(sys.argv) <= 1:
-		print('ERROR: Missing arguments', file=sys.stderr)
-		print(f"""Usage: $ {sys.argv[0]} <dataDir> (<prefUser>)
-	dataDir:
-		Directory where the public dataset is located
-		(ex: data/input/tournesol_dataset)
-	prefUser: (Optional)
-		User from whom get user specific statistics
-		(ex: NatNgs)
-""")
-		exit(-1)
 
-	input_dir = sys.argv[1]
+################
+##### MAIN #####
+################
 
-	cmpFile = ComparisonFile(input_dir)
 
-	print("### User Statistics ###")
-	users_with_only_1cmp = get_users_count_stats(cmpFile)
-	print
-	print("### Videos Statistics ###")
-	get_videos_count_stats(cmpFile)
-	print
-	print("### Channels Statistics ###")
-	get_creators_stats(cmpFile, users_with_only_1cmp)
-	print
+# Unload parameters
+parser = argparse.ArgumentParser()
+parser.add_argument('-t', '--tournesoldataset', help='Directory where the public dataset is located', default='data/tournesol_dataset', type=str)
+parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json', type=str)
+parser.add_argument('-u', '--user', help='Get statistics for given user. If unset, will compute global statistics', type=str, default=None)
+parser.add_argument('--fetch', help='If set, will not fetch youtube API for updating data', action=argparse.BooleanOptionalAction, default=True)
 
-	if len(sys.argv) > 2:
-		user = sys.argv[2]
-		print(f"### {user} Statistics ###")
-		get_user_specific_stats(cmpFile, user)
-		print
+args = vars(parser.parse_args())
 
+cmpFile = ComparisonFile(args['tournesoldataset'])
+
+if args['user']:
+	print_user_specific_stats(cmpFile, args['user'])
+else:
+	YTDATA = YTData()
+	try:
+		YTDATA.load('data/YTData_cache.json')
+	except FileNotFoundError:
+		pass
+	print_global_stats(cmpFile, YTDATA, args['fetch'])

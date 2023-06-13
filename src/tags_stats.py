@@ -9,10 +9,13 @@ def group_keys(d: dict):
 
 def get_vids_from_comparisons(tdata: str):
 	# Extract videos id from comparisons
-	# - Need to be compared by at least 3 different users (users having compared at least 5 different videos)
+	# - Need to be compared by at least MIN_USERS different users
+	# - users having compared at least MIN_CMPS different videos
+	MIN_USERS=2
+	MIN_CMPS=3
+
 	cf = ComparisonFile(tdata)
 
-	MIN_CMPS=5
 	usrs_cmps: dict[str, set[str]] = dict()
 	usrs_ok: set[str] = set()
 	def line_parser_users(line: ComparisonLine):
@@ -31,7 +34,6 @@ def get_vids_from_comparisons(tdata: str):
 	# free memory: flush users_cmps
 	usrs_cmps.clear()
 
-	MIN_USERS=3
 	vid_usr: dict[str,set[str]] = dict()
 	vid_ok: set[str] = set()
 	def line_parser_videos(line: ComparisonLine):
@@ -64,10 +66,14 @@ def do_analyse_tags(vids: set[str], ytdata: YTData, tds: str):
 			tags.add('Channel: ' + vdata.channel.get('title', vdata['cid']))
 		if vdata['category']:
 			tags.add(f"YT Category: {vdata['category']}")
+		if vdata['date']:
+			tags.add(f"Year: {vdata['date'][:4]}")
 		if vdata['tags']:
 			tags.update(['Tag: ' + t for t in vdata['tags']])
 		if vdata['topics']:
 			tags.update(['Topic: ' + t for t in vdata['topics']])
+		if vdata['localizations']:
+			tags.update(['Locale: ' + t for t in vdata['localizations']])
 		for t in tags:
 			if not t in tags_vids:
 				tags_vids[t] = set()
@@ -84,10 +90,11 @@ def do_analyse_tags(vids: set[str], ytdata: YTData, tds: str):
 	MIN_VIDS_KEEP_TAG=3
 	tags_scores: dict[str, float] = dict()
 	for tag in list(grouped_tags_vids.keys()):
-		if len(grouped_tags_vids[tag]) < MIN_VIDS_KEEP_TAG:
+		g = set(grouped_tags_vids[tag]).intersection(vid_scores.keys())
+		if len(g) < MIN_VIDS_KEEP_TAG:
 			grouped_tags_vids.pop(tag)
 			continue
-		tags_scores[tag] = sum([vid_scores[v] for v in grouped_tags_vids[tag]]) / len(grouped_tags_vids[tag])
+		tags_scores[tag] = sum([vid_scores[v] for v in g]) / len(g)
 
 	ordered = sorted(tags_scores.keys(), key=lambda k: tags_scores[k], reverse=True)
 	print('Analyzed', len(ordered), 'distinct tags')

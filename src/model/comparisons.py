@@ -8,6 +8,7 @@ class ComparisonLine:
 			self.vid2 = sp[2]
 			self.criteria = sp[3]
 			self.score = int(float(sp[4]))
+			self.date = sp[5]
 		except:
 			print(sp)
 			raise
