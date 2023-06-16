@@ -2,20 +2,24 @@ import random
 import networkx as nx
 import numpy as np
 
-def radialized_layout(G: nx.Graph, pos: dict[str, tuple[float, float]] = dict(), full_graph: nx.Graph = None, weight='weight') -> dict[str, tuple[float, float]]:
+def radialized_layout(
+		G: nx.Graph,
+		pos: dict[str, tuple[float, float]] = dict(),
+		full_graph: nx.Graph = None,
+		weight='weight',
+		center_nodes:list[str] = None) -> dict[str, tuple[float, float]]:
+
 	if full_graph is None:
 		full_graph = G
 
 	new_pos = dict() # {node: (rad, ang)}
 	for n in G.nodes:
-		if not n in pos:
-			new_pos[n] = np.array([random.random()*2-1, random.random()*2-1])
-		else:
-			new_pos[n] = np.array(pos[n])
+		new_pos[n] = np.array(pos[n]) if n in pos else np.array([random.random()*2-1, random.random()*2-1])
 
 	# Find center(s) node(s) (higher degrees nodes)
-	maxdeg = max(G.degree[node] for node in G.nodes)
-	center_nodes = {node for node in G.nodes if G.degree[node] == maxdeg}
+	if not center_nodes:
+		maxdeg = max(G.degree[node] for node in G.nodes)
+		center_nodes = {node for node in G.nodes if G.degree[node] == maxdeg}
 	center_nodes_ln = len(center_nodes)
 
 	# Compute the distance from every node to the center

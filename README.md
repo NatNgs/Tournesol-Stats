@@ -81,7 +81,7 @@ Will generate the output png file as `TournesolStats/data/output/graph_<username
 - No Unit test => May contain bugs
 
 
-### Centrality ('centrality.py')
+### Video Graph ('video_graph.py')
 
 Compute and display simple graph with various parameters
 
@@ -100,10 +100,34 @@ Compute and display simple graph with various parameters
 #### How to use
 
 To run with default configuration:
-`py src/centrality.py`
+`py src/video_graph.py`
 
 Show help for more personalized settings:
-`py src/centrality.py -h`
+`py src/video_graph.py -h`
+
+
+### Users Graph ('users_graph.py')
+
+Compute and display simple graph with various parameters
+
+- Nodes represents users
+	- Node color depends on the date of user first comparison (red = ancient, green = average, blue = recent)
+	- Node size depends on how many different video the user has compared
+- Edges represents similarities between users
+	- Similarity is how many videos they have compared in common (ignoring what score they gave)
+	- Only shown if significant similarities between users
+	- Will be shorter, wider and less transparent as the number of shared videos increases
+
+- Can filter (or not) on a specific date (will get only comparisons made after it)
+
+#### How to use
+
+To run with default configuration:
+`py src/users_graph.py`
+
+Show help for more personalized settings:
+`py src/users_graph.py -h`
+
 
 
 ### Tags Statistics ('tags_stats.py')
