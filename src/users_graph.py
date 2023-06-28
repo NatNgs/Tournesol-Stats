@@ -165,7 +165,7 @@ def graph_to_svg(graph: nx.Graph, filename: str):
 		pos=pos,
 		font_size=2,
 		font_family='mono',
-		font_color='#000',
+		font_color='#888',
 	)
 
 	end = time.time()

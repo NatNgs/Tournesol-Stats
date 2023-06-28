@@ -217,7 +217,7 @@ class YTData:
 			print(f'Loaded {vcnt} videos & {ccnt} channels.')
 		self._update_vid_channel_links()
 
-	def save(self, filename: str):
+	def save(self, filename: str, print_log:bool = True):
 		json_data = {
 			'VIDEOS': {k:self.videos[k].raw for k in self.videos},
 			'CHANNELS': {k:self.channels[k].raw for k in self.channels}
@@ -230,7 +230,8 @@ class YTData:
 				sort_keys=True,
 				ensure_ascii=False
 			)
-			print(f'YTData saved to file {os.path.realpath(file.name)}', flush=True)
+			if print_log:
+				print(f'YTData saved to file {os.path.realpath(file.name)}', flush=True)
 
 	def update(self, vids=[], cachedDays=365, max_update=1000, force=False, save=None):
 		updateDate = (datetime.datetime.utcnow() + datetime.timedelta(days=-cachedDays)).isoformat() + 'Z'
@@ -255,7 +256,7 @@ class YTData:
 			for vid in newvideos:
 				self.videos[vid] = Video(newvideos[vid])
 			if save:
-				self.save(save)
+				self.save(save, print_log=False)
 		if toFetch > 0:
 			print(f'Fetched {toFetch}/{toFetch} videos.')
 
@@ -281,7 +282,7 @@ class YTData:
 			for cid in newchannels:
 				self.channels[cid] = Channel(newchannels[cid])
 			if save:
-				self.save(save)
+				self.save(save, print_log=False)
 		if toFetch > 0:
 			print(f'Fetched {toFetch}/{toFetch} channels.')
 

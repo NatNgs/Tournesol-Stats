@@ -1,5 +1,5 @@
 import argparse
-import sys
+from datetime import datetime, timedelta
 
 import numpy as np
 from model.comparisons import ComparisonFile, ComparisonLine
@@ -59,6 +59,8 @@ def print_users_count_stats(cmpFile: ComparisonFile):
 	nb_comparisons_by_user: dict[str, dict[str, int]] = dict() # Kind, user, count
 	nb_comparisons_by_user['OVERALL'] = dict()
 	users_videos: dict[str,set[str]] = dict()
+	users_active: set[str] = set()
+	last_4weeks = datetime.today() - timedelta(weeks=4.5)
 
 	def line_parser(line: ComparisonLine):
 		if not line.criteria in nb_comparisons_by_user:
@@ -79,12 +81,15 @@ def print_users_count_stats(cmpFile: ComparisonFile):
 		users_videos[line.user].add(line.vid1)
 		users_videos[line.user].add(line.vid2)
 
+		if datetime.fromisoformat(line.date) >= last_4weeks:
+			users_active.add(line.user)
+
 
 	cmpFile.foreach(line_parser)
 	_print_statistics(nb_comparisons_by_user)
 
-	topusers = sorted(nb_comparisons_by_user['OVERALL'].keys(), key=nb_comparisons_by_user['OVERALL'].get, reverse=True)
-	print('Top 100 users (by Overall comparisons count):')
+	topusers = sorted(nb_comparisons_by_user['largely_recommended'].keys(), key=nb_comparisons_by_user['largely_recommended'].get, reverse=True)
+	print('Top 100 active users (by total recommendations count - having at least 1cmp in the last 4 weeks):')
 	for i,u in enumerate(topusers[:100]):
 		print(f"-{i+1:3d}. {u} ({len(users_videos[u])} videos / {nb_comparisons_by_user['largely_recommended'][u]} recommendations / {nb_comparisons_by_user['OVERALL'][u]} comparisons)")
 
@@ -196,7 +201,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-t', '--tournesoldataset', help='Directory where the public dataset is located', default='data/tournesol_dataset', type=str)
 parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json', type=str)
 parser.add_argument('-u', '--user', help='Get statistics for given user. If unset, will compute global statistics', type=str, default=None)
-parser.add_argument('--fetch', help='If set, will not fetch youtube API for updating data', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--fetch', help='If set, will fetch youtube API for updating data', action=argparse.BooleanOptionalAction, default=False)
 
 args = vars(parser.parse_args())
 
@@ -207,7 +212,10 @@ if args['user']:
 else:
 	YTDATA = YTData()
 	try:
-		YTDATA.load('data/YTData_cache.json')
+		YTDATA.load(args['cache'])
+		if args['fetch']:
+			YTDATA.update(cachedDays=61, save=args['cache'], max_update=500)
 	except FileNotFoundError:
 		pass
+
 	print_global_stats(cmpFile, YTDATA, args['fetch'])

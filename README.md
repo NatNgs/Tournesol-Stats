@@ -38,6 +38,8 @@ Get the dataset (downloaded as a zip archive), and unzip-it anywhere you like on
 
 These scripts need the structure of the unzipped archive to be unchanged to work. Do not move or rename any file from the dataset.
 
+-----
+-----
 
 ## Tools
 
@@ -80,8 +82,13 @@ Will generate the output png file as `TournesolStats/data/output/graph_<username
 	- A step of the algorithm computes the shortest distance between nodes, and result may be different with full dataset
 - No Unit test => May contain bugs
 
+-----
 
 ### Video Graph ('video_graph.py')
+
+<div align="center">
+	<img src="examples/video_graph/users/NatNgs.svg" align="center" style="max-height:25em;"/>
+</div>
 
 Compute and display simple graph with various parameters
 
@@ -97,6 +104,7 @@ Compute and display simple graph with various parameters
 	- katz : Katz Centrality value of the node (see google)
 	- rndwalk : Betweenness Centrality value of the node (see google)
 
+
 #### How to use
 
 To run with default configuration:
@@ -105,8 +113,13 @@ To run with default configuration:
 Show help for more personalized settings:
 `py src/video_graph.py -h`
 
+-----
 
 ### Users Graph ('users_graph.py')
+
+<div align="center">
+	<img src="examples/users_graph/2023-06-12.svg" align="center" style="max-height:25em;"/>
+</div>
 
 Compute and display simple graph with various parameters
 
@@ -128,7 +141,7 @@ To run with default configuration:
 Show help for more personalized settings:
 `py src/users_graph.py -h`
 
-
+-----
 
 ### Tags Statistics ('tags_stats.py')
 
@@ -141,6 +154,8 @@ To run with default configuration:
 
 Show help for more personalized settings:
 `py src/tags_stats.py -h`
+
+-----
 
 ### Random Statistics ('rnd_stats.py')
 
@@ -160,6 +175,8 @@ Example (to show also given user statistics):
 
 Depends on file `data/YTData_cache.json` to be present, or will create it otherwise, using Youtube API Key located in `~/Documents/YT_API_KEY.txt`
 
+-----
+-----
 
 ## LICENSE
 
