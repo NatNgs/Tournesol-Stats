@@ -122,7 +122,7 @@ def print_creators_stats(cmpFile: ComparisonFile, YTDATA: YTData, fetchunknown: 
 	cmpFile.foreach(_video_lister)
 
 	if fetchunknown:
-		YTDATA.update(vids, save='data/YTData_cache.json')
+		YTDATA.update(vids, save='data/YTData_cache.json', cachedDays=61)
 
 	unknownvid = set()
 	def _line_parser(line: ComparisonLine):
@@ -213,8 +213,6 @@ else:
 	YTDATA = YTData()
 	try:
 		YTDATA.load(args['cache'])
-		if args['fetch']:
-			YTDATA.update(cachedDays=61, save=args['cache'], max_update=500)
 	except FileNotFoundError:
 		pass
 

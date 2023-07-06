@@ -135,10 +135,10 @@ Compute and display simple graph with various parameters
 
 #### How to use
 
-To run with default configuration:
+To run with default configuration: \
 `py src/users_graph.py`
 
-Show help for more personalized settings:
+Show help for more personalized settings: \
 `py src/users_graph.py -h`
 
 -----
@@ -149,10 +149,10 @@ Compute and print average Tournesol rating for every youtube videos tags present
 
 #### How to use
 
-To run with default configuration:
+To run with default configuration: \
 `py src/tags_stats.py`
 
-Show help for more personalized settings:
+Show help for more personalized settings: \
 `py src/tags_stats.py -h`
 
 -----
@@ -165,15 +165,34 @@ Show various statistics from the dataset
 
 `py src/rndstats.py <tournesol-dataset-dir> (<username>)`
 
-Example (to show only general statistics):
+Example (to show only general statistics): \
 `py src/rndstats.py data/input/tournesol_dataset`
 
-Example (to show also given user statistics):
+Example (to show also given user statistics): \
 `py src/rndstats.py data/input/tournesol_dataset NatNgs`
 
 #### Setup
 
 Depends on file `data/YTData_cache.json` to be present, or will create it otherwise, using Youtube API Key located in `~/Documents/YT_API_KEY.txt`
+
+-----
+
+### Comparison Challenge Generator ('challenge.py')
+
+Suggest comparisons of videos having received similar comparisons.
+
+The idea is so that every video is compared with at least one more recommended one, and at lease one less recommended one, so the global rating of the video can be somewhat capped by the top AND by the bottom, and so improve the global scoring.
+
+#### How to use
+
+To run with default configuration: \
+`py src/challenge.py`
+
+Show help for more personalized settings: \
+`py src/challenge.py -h`
+
+Example (Using specified dataset, and challenging only the user `NatNgs`' comparisons): \
+`py src/challenge.py -t data/tournesol_dataset -u NatNgs`
 
 -----
 -----
