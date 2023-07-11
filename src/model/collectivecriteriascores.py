@@ -31,10 +31,18 @@ class CollectiveCriteriaScoresFile:
 
 		cmpFile.close()
 
-	def get_vids_scores(self, criteria: str, vids: Iterable[str]=None, ignored: Iterable[str]=None):
+	def get_vids_scores(self, criterion: str, vids: Iterable[str]=None, ignored: Iterable[str]=None):
 		vids_scores: dict[str, float] = dict()
 		def parse_line(line: CCSLine):
-			if criteria == line.criteria and (vids == None or line.video in vids) and (ignored == None or line.video not in ignored):
+			if criterion == line.criteria and (vids == None or line.video in vids) and (ignored == None or line.video not in ignored):
 				vids_scores[line.video] = line.score
 		self.foreach(parse_line)
-		return vids_scores
+		return {v: x[criterion] for v,x in self.get_vids_scores_criteria(vids=vids, ignored=ignored).items()} # vids_scores[vid] = score
+
+	def get_vids_scores_criteria(self, vids: Iterable[str]=None, ignored: Iterable[str]=None):
+		vids_scores: dict[str, dict[str,float]] = dict()
+		def parse_line(line: CCSLine):
+			if (vids == None or line.video in vids) and (ignored == None or line.video not in ignored):
+				vids_scores.setdefault(line.video, dict())[line.criteria] = line.score
+		self.foreach(parse_line)
+		return vids_scores # vids_scores[vid][criteria] = score

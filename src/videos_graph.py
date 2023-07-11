@@ -40,7 +40,7 @@ def load_graph(datasetpath: str, limit: str, user: str):
 def weight_to_color(weight, min_c:float, mm_c:float):
 	return colorsys.hsv_to_rgb((weight-min_c)/mm_c * (128/360), .9, .9)
 
-def get_graph_layout(graph: nx.Graph):
+def get_graph_layout(graph: nx.Graph, elastic_time: int):
 	print('Preparing graph layout', end='', flush=True)
 	start = time.time()
 	pos = radialized_layout(graph, pos=nx.circular_layout(graph))
@@ -49,7 +49,7 @@ def get_graph_layout(graph: nx.Graph):
 	i *= 10
 
 	itt=0
-	while time.time() - start < 300:
+	while time.time() - start < elastic_time:
 		print('.', end='', flush=True)
 		pos = nx.spring_layout(graph, pos=pos, weight='spring', iterations=i)
 		itt += i
@@ -61,9 +61,9 @@ def get_graph_layout(graph: nx.Graph):
 
 	return pos
 
-def graph_to_svg(unorderedgraph: nx.Graph, colors: dict[str, float], filename: str):
+def graph_to_svg(unorderedgraph: nx.Graph, colors: dict[str, float], filename: str, elastic_time:int):
 	# Compute node location
-	pos = get_graph_layout(unorderedgraph)
+	pos = get_graph_layout(unorderedgraph, elastic_time)
 
 	# Subgraph to show (remove helper edges, order nodes by color)
 	nodes = sorted(unorderedgraph.nodes, key=colors.get)
@@ -209,6 +209,7 @@ if __name__ == '__main__':
 	parser.add_argument('-t', '--tournesoldataset', help='Directory where the public dataset is located (default: %(default))', default='data/tournesol_dataset', type=str)
 	parser.add_argument('-l', '--limit', help='If set, will only fetch data after the given date (ISO format like 2000-12-31)', type=str, default='')
 	parser.add_argument('-u', '--user', help='If set, will only fetch comparisons of this user', type=str, default='')
+	parser.add_argument('-e', '--elastic-duration', help='Set the duration of the graph layout calculations in seconds (default: 300)', type=int, default=300)
 	parser.add_argument('-m', '--mode', type=str,
 		help='Mode for computing weights for nodes color, default: %(default)',
 		choices=[
@@ -222,6 +223,9 @@ if __name__ == '__main__':
 		default='degree'
 	)
 	args = vars(parser.parse_args())
+
+	if args['elastic_duration'] < 1:
+		raise 'Elastic duration should be greater than 1 (1sec.) - Value was "' + args['elastic_duration'] + '"'
 
 	# Extract videos id from comparisons
 	# - Need to be compared by at least 3 different users
@@ -241,5 +245,5 @@ if __name__ == '__main__':
 	# Analyse distances
 	weights: dict[str, float] = compute_colors(graph, args['mode'], args['tournesoldataset'])
 	graph.remove_nodes_from(n for n in list(graph.nodes) if not n in weights)
-	graph_to_svg(graph, weights, args['out'])
+	graph_to_svg(graph, weights, args['out'], args['elastic_duration'])
 	svg.optimize(args['out'])

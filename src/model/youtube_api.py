@@ -267,11 +267,10 @@ class YTData:
 		for vid in self.videos:
 			if 'cid' in self.videos[vid]:
 				cid = self.videos[vid]['cid']
-				if cid not in channelsToUpdate and (
-						cid not in self.channels # Update unknown channels
-						or (force and vid in vids) # Force update channels of given videos
-						or self.channels[cid]['updated'] < updateDate
-					):
+				if (   (force and vid in vids) # Force update channels of given videos
+					or (cid not in self.channels) # Update unknown channels
+					or (self.channels[cid]['updated'] < updateDate)
+				):
 					channelsToUpdate.add(cid)
 
 		# Update channels
