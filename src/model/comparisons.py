@@ -6,7 +6,7 @@ class ComparisonLine:
 			self.user = sp[0]
 			self.vid1 = sp[1]
 			self.vid2 = sp[2]
-			self.criteria = sp[3]
+			self.criterion = sp[3]
 			self.score = int(float(sp[4]))
 			self.date = sp[5]
 		except:

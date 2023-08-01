@@ -11,7 +11,7 @@ def get_vids_from_comparisons(tdata: str):
 	# Extract videos id from comparisons
 	# - Need to be compared by at least MIN_USERS different users
 	# - users having compared at least MIN_CMPS different videos
-	MIN_USERS=2
+	MIN_USERS=3
 	MIN_CMPS=3
 
 	cf = ComparisonFile(tdata)
@@ -19,7 +19,7 @@ def get_vids_from_comparisons(tdata: str):
 	usrs_cmps: dict[str, set[str]] = dict()
 	usrs_ok: set[str] = set()
 	def line_parser_users(line: ComparisonLine):
-		if line.criteria != 'largely_recommended':
+		if line.criterion != 'largely_recommended':
 			return
 		if line.user in usrs_ok:
 			return
@@ -37,7 +37,7 @@ def get_vids_from_comparisons(tdata: str):
 	vid_usr: dict[str,set[str]] = dict()
 	vid_ok: set[str] = set()
 	def line_parser_videos(line: ComparisonLine):
-		if line.criteria != 'largely_recommended':
+		if line.criterion != 'largely_recommended':
 			return
 		if line.user not in usrs_ok:
 			return
@@ -112,7 +112,7 @@ def do_analyse_tags(vids: set[str], ytdata: YTData, tds: str):
 parser = argparse.ArgumentParser()
 parser.add_argument('-t', '--tournesoldataset', help='Directory where the public dataset is located', default='data/tournesol_dataset', type=str)
 parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json', type=str)
-parser.add_argument('--fetch', help='If set, will not fetch youtube API for updating data', action=argparse.BooleanOptionalAction, default=True)
+parser.add_argument('--fetch', help='If --fetch, will fetch youtube API for updating data', action=argparse.BooleanOptionalAction, default=False)
 
 args = vars(parser.parse_args())
 

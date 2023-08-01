@@ -15,7 +15,7 @@ def recom(user: str, cmp_file: ComparisonFile, langs: set[str]):
 	graph = nx.Graph()
 
 	def _parse_lines(line: ComparisonLine):
-		if line.criteria != 'largely_recommended':
+		if line.criterion != 'largely_recommended':
 			return
 
 		if line.user == user:

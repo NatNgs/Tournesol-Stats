@@ -25,7 +25,7 @@ def load_graph(datasetpath: str, limit: str):
 	users_date: dict[str,str] = dict() # user: first_comparison_date
 
 	def parser(line: ComparisonLine):
-		if line.criteria != 'largely_recommended' or limit and line.date < limit:
+		if line.criterion != 'largely_recommended' or limit and line.date < limit:
 			return
 
 		if not line.user in data:

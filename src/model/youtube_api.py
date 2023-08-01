@@ -164,18 +164,23 @@ class Video(dict):
 		self.channel: Channel = None
 
 	def __getitem__(self, key):
-		return self.get(key)
+		return self.raw.get(key)
 
 	def get(self, key, default=None):
 		return self.raw.get(key, default)
 
-	def __str__(self):
+	def short_str(self):
 		if 'title' in self.raw:
 			if self.channel:
-				return f"[{self.id}] {self.channel}: {self.raw['title']}"
-			return f"[{self.id}] {self.raw['title']}"
-		else:
-			return f"[{self.id}]"
+				return f"{self.channel}: {self.raw['title']}"
+			return f"(Unknown channel): {self.raw['title']}"
+		return ''
+
+	def __str__(self):
+		ss = self.short_str()
+		if ss:
+			return f"[{self.id}] {ss}"
+		return f"[{self.id}]"
 
 class Channel():
 	def __init__(self, json: dict[str, any]):
@@ -241,23 +246,27 @@ class YTData:
 		for v in vids:
 			if force or (not v in self.videos):
 				vidsToUpdate.add(v)
+		newV = len(vidsToUpdate)
 
-		for vid in self.videos:
-			if self.videos[vid]['updated'] < updateDate:
-				vidsToUpdate.add(vid)
-				if len(vidsToUpdate) >= max_update:
-					break
+		for vid in sorted(self.videos, key=lambda v: self.videos[v]['updated']):
+			if self.videos[vid]['updated'] > updateDate:
+				break
+			vidsToUpdate.add(vid)
+			if len(vidsToUpdate) >= max_update:
+				break
 
-		# Update videos
 		toFetch = len(vidsToUpdate)
-		for chunk in range(0, toFetch, MAX_FETCH_SIZE):
-			print(f"Fetching {chunk}/{toFetch} videos...")
-			newvideos = _fetch_video_data(list(vidsToUpdate)[chunk:chunk+MAX_FETCH_SIZE])
-			for vid in newvideos:
-				self.videos[vid] = Video(newvideos[vid])
-			if save:
-				self.save(save, print_log=False)
 		if toFetch > 0:
+			print(f"{newV} new videos to fetch + {toFetch-newV} to be updated")
+
+			# Update videos
+			for chunk in range(0, toFetch, MAX_FETCH_SIZE):
+				print(f"Fetching {chunk}/{toFetch} videos...")
+				newvideos = _fetch_video_data(list(vidsToUpdate)[chunk:chunk+MAX_FETCH_SIZE])
+				for vid in newvideos:
+					self.videos[vid] = Video(newvideos[vid])
+				if save:
+					self.save(save, print_log=False)
 			print(f'Fetched {toFetch}/{toFetch} videos.')
 
 		###
@@ -265,9 +274,8 @@ class YTData:
 		# Find channels to update
 		channelsToUpdate: set[str] = set()
 		for vid in self.videos:
-			if 'cid' in self.videos[vid]:
-				cid = self.videos[vid]['cid']
-				if (   (force and vid in vids) # Force update channels of given videos
+			cid = self.videos[vid]['cid']
+			if cid  and (   (force and vid in vids) # Force update channels of given videos
 					or (cid not in self.channels) # Update unknown channels
 					or (self.channels[cid]['updated'] < updateDate)
 				):

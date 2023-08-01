@@ -36,7 +36,6 @@ class IndividualCriteriaScoresFile:
 
 	def get_scores(self, criterion:str=None, users:Iterable[str]=None, vids:Iterable[str]=None) -> dict[str,dict[str,dict[str,tuple[float,float]]]]:
 		"""
-
 		Args:
 			criterion (str, optional): Filter to given criterion only. None means no filtering on criteria.
 			users (Iterable[str], optional): List or set of usernames to extract. None means no filtering on users.

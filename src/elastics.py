@@ -6,10 +6,11 @@ from model.youtube_api import YTData
 
 def extractComparisons(cmpFile: ComparisonFile, user: str):
 
-	cmps: dict[str, dict[str, tuple[float, float]]] = dict() # {vid: {vid2: (sum, count)}}
+	cmps: dict[str, dict[str, tuple[float, float, set[str]]]] = dict() # {vid: {vid2: (sum, count)}}
+	usrs: dict[str,set[str]] = dict() # {vid: {usr1, usr2, ...}}
 
 	def parse_line(line: ComparisonLine):
-		if line.criteria != 'largely_recommended' or (user and user != line.user):
+		if line.criterion != 'largely_recommended' or (user and user != line.user):
 			return
 
 		if not line.vid1 in cmps:
@@ -19,27 +20,36 @@ def extractComparisons(cmpFile: ComparisonFile, user: str):
 		cmpVid1 = cmps[line.vid1]
 		cmpVid2 = cmps[line.vid2]
 		if not line.vid1 in cmpVid2:
-			cmpVid2[line.vid1] = (0, 0)
+			cmpVid2[line.vid1] = (0, 0, set())
 		if not line.vid2 in cmpVid1:
-			cmpVid1[line.vid2] = (0, 0)
+			cmpVid1[line.vid2] = (0, 0, set())
+
+		if not user:
+			usrs.setdefault(line.vid1, set()).add(line.user)
+			usrs.setdefault(line.vid2, set()).add(line.user)
 
 		cmpVid1[line.vid2] = (cmpVid1[line.vid2][0]-line.score, cmpVid1[line.vid2][1]+1)
 		cmpVid2[line.vid1] = (cmpVid2[line.vid1][0]+line.score, cmpVid2[line.vid1][1]+1)
 	cmpFile.foreach(parse_line)
 
 	# Remove vid with less than 3 comparisons
-	l = len(cmps.keys())
+	l = len(cmps)
 	toredo = True
 	while toredo:
 		toredo = False
 		for vid in list(cmps.keys()):
-			if len(cmps[vid].keys()) < 3:
+			if not user and len(usrs[vid]) < 3:
+				cmps.pop(vid, None)
+				for sub in cmps.values():
+					sub.pop(vid, None)
+				toredo = True
+			elif len(cmps[vid]) < 3:
 				cmps.pop(vid, None)
 				for sub in cmps.values():
 					sub.pop(vid, None)
 				toredo = True
 
-	print(f"Total: {l}, Kept for analysis: {len(cmps.keys())}")
+	print(f"Total: {l}, Kept for analysis: {len(cmps)}")
 
 	return cmps
 
@@ -62,8 +72,8 @@ def update_scores(cmps: dict[str, dict[str, tuple[float, float]]], scores: dict[
 		furth:float = max(abs(scores[v2]-s) for v2 in cmps[vid]) # furthest distance from vid score and others
 		if furth < 0.01:
 			furth = 0.01 # Minimum twitching
-		elif furth > 0.25:
-			furth = 0.25
+		elif furth > 0.5:
+			furth = 0.5 # Maximum twitching
 
 		# Say that furthest distance == maximum aboslute value
 		dist_per_point = furth/mmx
@@ -137,7 +147,7 @@ if __name__ == '__main__':
 			scores[v1] = 1 if pos else -1
 
 
-	for i in range(1000):
+	for i in range(100*len(scores)):
 		# Update score
 		newscores = update_scores(cmps, scores, fixed)
 
@@ -154,9 +164,9 @@ if __name__ == '__main__':
 
 		scores = newscores
 		if i%25 == 0:
-			print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%})")
+			print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%})", flush=True)
 		if max_diff < 0.0001:
-			print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%})")
+			print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%})", flush=True)
 			break
 
 
@@ -164,12 +174,8 @@ if __name__ == '__main__':
 
 	sorted_vids: list[str] = sorted(scores.keys(), key=scores.get, reverse=True)
 
-	i = 0
 	for vid in sorted_vids:
 		if vid in fixed:
-			pass # print(f"#### {YTDATA.videos.get(vid, vid)}")
+			print(f"#### {YTDATA.videos.get(vid, vid)}")
 		else:
-			i +=1
 			print(f"{scores[vid]:+4.0%} {YTDATA.videos.get(vid, vid)}")
-			if i > 30:
-				break

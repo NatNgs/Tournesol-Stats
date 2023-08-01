@@ -63,13 +63,13 @@ def print_users_count_stats(cmpFile: ComparisonFile):
 	last_4weeks = datetime.today() - timedelta(weeks=4.5)
 
 	def line_parser(line: ComparisonLine):
-		if not line.criteria in nb_comparisons_by_user:
-			nb_comparisons_by_user[line.criteria] = dict()
+		if not line.criterion in nb_comparisons_by_user:
+			nb_comparisons_by_user[line.criterion] = dict()
 
-		if not line.user in nb_comparisons_by_user[line.criteria]:
-			nb_comparisons_by_user[line.criteria][line.user] = 1
+		if not line.user in nb_comparisons_by_user[line.criterion]:
+			nb_comparisons_by_user[line.criterion][line.user] = 1
 		else:
-			nb_comparisons_by_user[line.criteria][line.user] += 1
+			nb_comparisons_by_user[line.criterion][line.user] += 1
 
 		if not line.user in nb_comparisons_by_user['OVERALL']:
 			nb_comparisons_by_user['OVERALL'][line.user] = 1
@@ -99,14 +99,14 @@ def print_videos_count_stats(cmpFile: ComparisonFile):
 	nb_comparisons_by_video: dict[str, dict[str, int]] = dict() # Kind, video, count
 
 	def line_parser(line: ComparisonLine):
-		if not line.criteria in nb_comparisons_by_video:
-			nb_comparisons_by_video[line.criteria] = dict()
+		if not line.criterion in nb_comparisons_by_video:
+			nb_comparisons_by_video[line.criterion] = dict()
 
 		for vid in [line.vid1, line.vid2]:
-			if not vid in nb_comparisons_by_video[line.criteria]:
-				nb_comparisons_by_video[line.criteria][vid] = 1
+			if not vid in nb_comparisons_by_video[line.criterion]:
+				nb_comparisons_by_video[line.criterion][vid] = 1
 			else:
-				nb_comparisons_by_video[line.criteria][vid] += 1
+				nb_comparisons_by_video[line.criterion][vid] += 1
 
 	cmpFile.foreach(line_parser)
 	_print_statistics(nb_comparisons_by_video)
@@ -122,12 +122,12 @@ def print_creators_stats(cmpFile: ComparisonFile, YTDATA: YTData, fetchunknown: 
 	cmpFile.foreach(_video_lister)
 
 	if fetchunknown:
-		YTDATA.update(vids, save='data/YTData_cache.json', cachedDays=61)
+		YTDATA.update(vids, save='data/YTData_cache.json', cachedDays=122, max_update=5000)
 
 	unknownvid = set()
 	def _line_parser(line: ComparisonLine):
-		if not line.criteria in nb_comparisons_by_channel:
-			nb_comparisons_by_channel[line.criteria] = dict()
+		if not line.criterion in nb_comparisons_by_channel:
+			nb_comparisons_by_channel[line.criterion] = dict()
 
 		for vid in [line.vid1, line.vid2]:
 			if not vid in YTDATA.videos or not YTDATA.videos[vid].channel:
@@ -136,10 +136,10 @@ def print_creators_stats(cmpFile: ComparisonFile, YTDATA: YTData, fetchunknown: 
 
 			channel = YTDATA.videos[vid].channel
 			cname = channel['name'] or channel.id
-			if not cname in nb_comparisons_by_channel[line.criteria]:
-				nb_comparisons_by_channel[line.criteria][cname] = 1
+			if not cname in nb_comparisons_by_channel[line.criterion]:
+				nb_comparisons_by_channel[line.criterion][cname] = 1
 			else:
-				nb_comparisons_by_channel[line.criteria][cname] += 1
+				nb_comparisons_by_channel[line.criterion][cname] += 1
 	cmpFile.foreach(_line_parser)
 
 	if unknownvid:
@@ -165,10 +165,10 @@ def print_user_specific_stats(cmpFile: ComparisonFile, user: str):
 		if line.user != user:
 			return
 
-		if not line.criteria in criteria_values:
-			criteria_values[line.criteria] = [0]*11
+		if not line.criterion in criteria_values:
+			criteria_values[line.criterion] = [0]*11
 
-		criteria_values[line.criteria][int(np.abs(line.score))] += 1
+		criteria_values[line.criterion][int(np.abs(line.score))] += 1
 
 	cmpFile.foreach(line_parser)
 

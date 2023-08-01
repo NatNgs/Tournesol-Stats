@@ -19,7 +19,7 @@ def load_graph(datasetpath: str, limit: str, user: str):
 	def parser(line: ComparisonLine):
 		if limit and line.date < limit:
 			return
-		if line.criteria == 'largely_recommended':
+		if line.criterion == 'largely_recommended':
 			nodes_size[line.vid1] = nodes_size.get(line.vid1,0) + 1
 			nodes_size[line.vid2] = nodes_size.get(line.vid2,0) + 1
 
