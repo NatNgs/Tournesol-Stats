@@ -1,86 +1,111 @@
 from typing import Callable
 import numpy as np
+from numpy._typing import NDArray
 import networkx as nx
 
-"""A module to demonstrate a force-directed graph layout algorithm.
-This implementation is done using GraphX.
-"""
 
 class ForceLayout():
-	'''
+	"""
+	A simple approach to force-directed graph layout.
+
 	self.G: nx.Graph
 	self.n: int (number of nodes)
 	self.nodes: list(nx.NodeView) ([node1, ...])
 	self.x: list[list[int, int]] ([[x, y], ...])
 	self.dx: list[list[int, int]] ([[dx, dy], ...])
-	'''
+	"""
 
-	def __init__(self,
-		G: nx.Graph,
-		weight: str or Callable[[str, str, dict[str, any]], float or None]=None,
-		pos=None,
-	):
-		"""A simple approach to force-directed graph layout.
-
-		G:
-			a graph, optionally with edge length values
-		weight:
-			Will act as a desired edge length between nodes
-			(if value for an edge is 0, will act as 'distance can be anything', and no force will be applied on these nodes)
-
-			if None (default), then all edges will try to be the same length
-			if string, use the corresponding edge data key as desired edge length
-			if function(edge) -> float, use this function to compute desired edge length between nodes
-				edge: [node1, node2, {prop: val, ...}] (given by nx.Graph.edges.data())
-		pos:
-			Initial location of nodes (if none, will be initialized randomly)
+	def __init__(self, G: nx.Graph):
 		"""
-		self.G = G
-		self.n = G.number_of_nodes()
-		self.nodes = sorted(G.nodes()) # need a fixed ordering of nodes
+		Args:
+			G (nx.Graph): The graph to compute the layout
+		"""
+		self.G: nx.Graph = G
+		self.n: int = 0
+		self.nodes: list[str] = []
+		self.x: NDArray = np.array([],dtype=(float,float))
+		self.dx: NDArray = np.array([],dtype=(float,float))
 
-		# output position
-		if pos:
-			self.x = [np.array(pos[node]) for node in self.nodes]
-		else:
-			self.x = np.random.random((self.n, 2)) # randomly initialise positions
+
+	def update_graph(self,
+		weight: str or Callable[[str, str, dict[str, any]], float or None]=None,
+		pos:dict[str,tuple[float,float]]=None
+	):
+		"""
+		Set or update graph, weights and positions of nodes. To be called after any change in the graph given in constructor
+
+		Args:
+			weight:
+				Will act as a desired edge length between nodes
+				(if value for an edge is 0, will act as 'distance can be anything', and no force will be applied on these nodes)
+
+				if None (default), then all edges will try to be the same length
+				if string, use the corresponding edge data key as desired edge length
+				if function(edge) -> float, use this function to compute desired edge length between nodes
+					edge: [node1, node2, {prop: val, ...}] (given by nx.Graph.edges.data())
+
+			pos (dict[node,ArrayLike[float]]):
+				Initial location of nodes (if none, will be initialized randomly)
+		"""
+		new_nodes: list[str] = []
+		new_x: list[tuple[float,float]] = []
+		new_dx: list[tuple[float,float]] = []
+
+		for n in self.G.nodes:
+			new_nodes.append(n)
+			if n in self.nodes:
+				i = self.nodes.index(n)
+				new_x.append(self.x[i])
+				new_dx.append(self.dx[i])
+			else:
+				new_x.append(pos.get(n,np.random.rand(2)))
+				new_dx.append([0,0])
+
+		self.n = len(new_nodes)
+		self.nodes = new_nodes
+		self.x = np.array(new_x,dtype=(float,float))
+		self.dx = np.array(new_dx,dtype=(float,float))
 
 		# Precompute weights
-		for edge in G.edges.data():
+		for edge in self.G.edges.data():
 			w = 0
 			if isinstance(weight, Callable): # provided weight function
 				w = weight(edge)
 			elif weight in edge[2]: # provided weight property's name
-				w = edge[weight]
-			edge[2]['fdg_d'] = w # save desired distance squared
-
-		# Inertia
-		self.dx = np.zeros((self.n,2))
+				w = edge[2][weight]
+			edge[2]['fdg_d'] = w # save desired distance
 
 
 	def iterate2(self,
-		time_factor=0.001,
-		repulse_lower_bound=0.01,
-		repulse_upper_bound=np.inf,
-		inertia_factor=0.1
-	):
+		attraction_factor:float=0.001,
+		repulsion_factor:float=0.001,
+		repulse_lower_bound:float=0.01,
+		repulse_upper_bound:float=np.inf,
+		inertia_factor:float=0.25
+	) -> float:
+		"""
+		Args:
+			attraction_factor (float, optional): Increased value makes edged attraction force higher. Defaults to 0.001.
+			repulsion_factor (float, optional): Increased value makes disconnected edges repulsion higher. Defaults to 0.001.
+			repulse_lower_bound (float, optional): Minimum distance between two nodes to be enforced. Defaults to 0.01.
+			repulse_upper_bound (float, optional): Maximum distance between two disconnected nodes to apply repulsion force. Defaults to infinity.
+			inertia_factor (float, optional): Nodes will keep this factor of their speed between one iteration to the other. Between 0 and 1. Defaults to 0.25.
+
+		Returns:
+			float: Amount of displacement that happened
+		"""
 		self.dx *= inertia_factor
 
 		for i in range(1,self.n):
 			ni = self.nodes[i]
+
+			ji = -self.x[0:i] + self.x[i,None]
+			dists = np.linalg.norm(ji, axis=1)
+
 			for j in range(0,i):
 				nj = self.nodes[j]
-
-				vector_ji = (self.x[i] - self.x[j]) # the vector from xj to xi
-				current_d = np.linalg.norm(vector_ji) # distance
-				if current_d < repulse_lower_bound: # prevent divide 0
-					current_d = repulse_lower_bound
-
-				# Apply repulsion
-				if current_d < repulse_upper_bound:
-					repulsion = vector_ji*time_factor/(current_d*current_d)
-					self.dx[i] += repulsion
-					self.dx[j] -= repulsion
+				vector_ji = ji[j]
+				current_d = dists[j]
 
 				# Apply spring force
 				if self.G.has_edge(ni, nj):
@@ -88,11 +113,18 @@ class ForceLayout():
 					if not desired_d:
 						continue
 
-					vector_ji = (self.x[i] - self.x[j]) # the vector from xj to xi
-
-					attraction = time_factor * (desired_d - current_d) * vector_ji
+					attraction = attraction_factor * vector_ji * (desired_d - current_d)
 					self.dx[i] += attraction
 					self.dx[j] -= attraction
+
+				# Apply repulsion
+				elif current_d < repulse_upper_bound:
+					if current_d < repulse_lower_bound: # prevent divide 0
+						current_d = repulse_lower_bound
+
+					repulsion = repulsion_factor * vector_ji / (current_d*current_d)
+					self.dx[i] += repulsion
+					self.dx[j] -= repulsion
 
 		# Apply forces
 		self.x += self.dx
@@ -157,4 +189,7 @@ class ForceLayout():
 		return np.linalg.norm(self.dx)
 
 	def get_pos(self):
-		return {self.nodes[i]: self.x[i] for i in range(len(self.nodes))}
+		avg = np.average(self.x, axis=0, keepdims=True)
+		res = self.x - avg
+
+		return {n: res[i] for i,n in enumerate(self.nodes)}
