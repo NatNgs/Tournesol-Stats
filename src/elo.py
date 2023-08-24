@@ -1,6 +1,7 @@
 import argparse
 import math
 import random
+import time
 from model.comparisons import ComparisonFile, ComparisonLine
 from model.youtube_api import YTData
 from scripts.elo import updateRating
@@ -11,7 +12,7 @@ def compute_elo_ranking(cmpFile:ComparisonFile, YTDATA: YTData, user: str):
 
 	comps: list[tuple[str,str,float]] = list()
 	def elo_update_line_parser(line: ComparisonLine):
-		if line.criteria != 'largely_recommended' \
+		if line.criterion != 'largely_recommended' \
 			or (user and user != line.user) \
 			or (not line.vid1 in YTDATA.videos) or (not line.vid2 in YTDATA.videos) \
 			or (not YTDATA.videos[line.vid1].get('title', '')) or (not YTDATA.videos[line.vid2].get('title', '')):
@@ -25,9 +26,13 @@ def compute_elo_ranking(cmpFile:ComparisonFile, YTDATA: YTData, user: str):
 
 
 	ELO_POWER: float = math.sqrt(1/len(elo))
-	print('Running competition: ')
-	for i in range(99):
-		print(i+1, end=' ', flush=True)
+	print(f"Running competition: ")
+	start = 0
+	for i in range(1,len(elo)):
+		now = time.time()
+		if now > start + 1:
+			print(i, end=' ', flush=True)
+			start = now
 		# Shuffle comps
 		random.shuffle(comps)
 
@@ -35,7 +40,11 @@ def compute_elo_ranking(cmpFile:ComparisonFile, YTDATA: YTData, user: str):
 			updatedElo = updateRating(elo[c[0]], elo[c[1]], c[2], ELO_POWER)
 			elo[c[0]] = updatedElo[0]
 			elo[c[1]] = updatedElo[1]
-	print('\n')
+		if min(elo.values()) <= 0:
+			break
+
+	print(i)
+
 	sortedKeys = sorted(elo.keys(), key=elo.get, reverse=True)
 
 	# Show top

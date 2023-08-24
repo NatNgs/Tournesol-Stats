@@ -1,42 +1,18 @@
+import argparse
 import random
-import sys
 import networkx as nx
 from model.youtube_api import YTData
 
 import scripts.grapher as grph
 
 
-if __name__ == '__main__':
-	# Unload parameters
-	if len(sys.argv) <= 3:
-		print('ERROR: Missing arguments', file=sys.stderr)
-		print(f"""Usage: $ {sys.argv[0]} <tournesolDataset> <cache> <user>
-	tournesolDataset:
-		Directory where the public dataset is located
-		(ex: data/tournesol_dataset)
-	cache:
-		Cached YT video information file
-		(ex: data/YTData_cache.json)
-	user:
-	 	User to get the statistics from
-		(ex: NatNgs)
-""")
-		exit(-1)
-
-	tournesol_dataset = sys.argv[1]
-	ytdata_cache = sys.argv[2]
-	target_user = sys.argv[3]
-
-	# Init data
-	ytdata = YTData()
-	ytdata.load(ytdata_cache)
-
+def graph(tournesol_dataset, YTDATA: YTData, target_user, ytdata_cache):
 	# Build Graph
 	graph = grph.build_graph(tournesol_dataset, target_user)
-	ytdata.update(vids=[node for (node, byme) in graph.nodes(data='cmp_by_me') if byme], save=ytdata_cache)
+	YTDATA.update(vids=[node for (node, byme) in graph.nodes(data='cmp_by_me') if byme], save=ytdata_cache)
 
 	# Do find most distant nodes
-	grph.add_recommended_nodes(graph, ytdata.videos)
+	grph.add_recommended_nodes(graph, YTDATA.videos)
 
 	# Sort nodes by degree
 	nodes_order = grph.get_ordered_nodes(graph)
@@ -51,4 +27,28 @@ if __name__ == '__main__':
 
 	subgraph = nx.subgraph_view(graph, filter_node=lambda node: node in pos)
 	pos = grph.optimize_graph_pos(subgraph, pos, 300)
-	grph.draw_graph_to_file(subgraph, pos, ytdata.videos, f"data/output/graph_{target_user}.svg")
+	grph.draw_graph_to_file(subgraph, pos, YTDATA.videos, f"data/output/graph_{target_user}.svg")
+
+
+
+################
+##### MAIN #####
+################
+
+
+# Unload parameters
+parser = argparse.ArgumentParser()
+parser.add_argument('-t', '--tournesoldataset', help='Directory where the public dataset is located', default='data/tournesol_dataset', type=str)
+parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json', type=str)
+parser.add_argument('-u', '--user', help='Get statistics for given user. If unset, will compute global statistics', type=str, default=None)
+parser.add_argument('--fetch', help='If set, will fetch youtube API for updating data', action=argparse.BooleanOptionalAction, default=False)
+
+args = vars(parser.parse_args())
+
+YTDATA = YTData()
+try:
+	YTDATA.load(args['cache'])
+except FileNotFoundError:
+	pass
+
+graph(args['tournesoldataset'], YTDATA, args['user'], args['cache'] if args['fetch'] else None)

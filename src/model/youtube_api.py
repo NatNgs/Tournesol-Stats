@@ -173,14 +173,18 @@ class Video(dict):
 		if 'title' in self.raw:
 			if self.channel:
 				return f"{self.channel}: {self.raw['title']}"
-			return f"(Unknown channel): {self.raw['title']}"
-		return ''
+			return f"(?): {self.raw['title']}"
+		return f"[{self.id}]"
+
+	def long_str(self):
+		if 'title' in self.raw:
+			if self.channel:
+				return f"[{self.id}] {self.channel}: {self.raw['title']}"
+			return f"[{self.id}] (Unknown channel): {self.raw['title']}"
+		return f"[{self.id}]"
 
 	def __str__(self):
-		ss = self.short_str()
-		if ss:
-			return f"[{self.id}] {ss}"
-		return f"[{self.id}]"
+		return self.short_str()
 
 class Channel():
 	def __init__(self, json: dict[str, any]):

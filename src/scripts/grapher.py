@@ -33,9 +33,9 @@ def build_graph(input_dir: str, target_user: str):
 		other_users.add(target_user)
 
 	# Parsing comparison data
-	criteria = 'largely_recommended'
+	criterion = 'largely_recommended'
 	def __unload_comparison_data(ldata: ComparisonLine):
-		if ldata.criteria != criteria or ldata.user not in other_users:
+		if ldata.criterion != criterion or ldata.user not in other_users:
 			return
 
 		if not graph.has_edge(ldata.vid1, ldata.vid2):

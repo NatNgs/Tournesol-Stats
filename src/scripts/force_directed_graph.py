@@ -82,7 +82,7 @@ class ForceLayout():
 		repulse_lower_bound:float=0.01,
 		repulse_upper_bound:float=np.inf,
 		inertia_factor:float=0.25
-	) -> float:
+	):
 		"""
 		Args:
 			attraction_factor (float, optional): Increased value makes edged attraction force higher. Defaults to 0.001.
@@ -90,9 +90,6 @@ class ForceLayout():
 			repulse_lower_bound (float, optional): Minimum distance between two nodes to be enforced. Defaults to 0.01.
 			repulse_upper_bound (float, optional): Maximum distance between two disconnected nodes to apply repulsion force. Defaults to infinity.
 			inertia_factor (float, optional): Nodes will keep this factor of their speed between one iteration to the other. Between 0 and 1. Defaults to 0.25.
-
-		Returns:
-			float: Amount of displacement that happened
 		"""
 		self.dx *= inertia_factor
 
@@ -102,13 +99,14 @@ class ForceLayout():
 			ji = -self.x[0:i] + self.x[i,None]
 			dists = np.linalg.norm(ji, axis=1)
 
+
 			for j in range(0,i):
 				nj = self.nodes[j]
 				vector_ji = ji[j]
 				current_d = dists[j]
 
 				# Apply spring force
-				if self.G.has_edge(ni, nj):
+				if nj in self.G[ni]:
 					desired_d = self.G.get_edge_data(ni, nj)['fdg_d']
 					if not desired_d:
 						continue
@@ -128,7 +126,6 @@ class ForceLayout():
 
 		# Apply forces
 		self.x += self.dx
-		return np.linalg.norm(self.dx)
 
 
 	def iterate1(self,
@@ -193,3 +190,6 @@ class ForceLayout():
 		res = self.x - avg
 
 		return {n: res[i] for i,n in enumerate(self.nodes)}
+
+	def get_lastiteration_movement(self):
+		return np.linalg.norm(self.dx)

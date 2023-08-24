@@ -1,4 +1,5 @@
 import argparse
+import math
 import time
 import numpy as np
 from model.comparisons import ComparisonFile, ComparisonLine
@@ -30,15 +31,17 @@ def extractComparisons(cmpFile: ComparisonFile, user: str):
 
 		cmpVid1[line.vid2] = (cmpVid1[line.vid2][0]-line.score, cmpVid1[line.vid2][1]+1)
 		cmpVid2[line.vid1] = (cmpVid2[line.vid1][0]+line.score, cmpVid2[line.vid1][1]+1)
+	print('Extracting comparisons...')
 	cmpFile.foreach(parse_line)
 
 	# Remove vid with less than 3 comparisons
+	print('Filtering comparisons...')
 	l = len(cmps)
 	toredo = True
 	while toredo:
 		toredo = False
 		for vid in list(cmps.keys()):
-			if not user and len(usrs[vid]) < 3:
+			if not user and len(usrs[vid]) < 5:
 				cmps.pop(vid, None)
 				for sub in cmps.values():
 					sub.pop(vid, None)
@@ -49,12 +52,11 @@ def extractComparisons(cmpFile: ComparisonFile, user: str):
 					sub.pop(vid, None)
 				toredo = True
 
-	print(f"Total: {l}, Kept for analysis: {len(cmps)}")
-
+	print(f"Videos kept for analysis: {len(cmps)}")
 	return cmps
 
 
-def update_scores(cmps: dict[str, dict[str, tuple[float, float]]], scores: dict[str, float], fixed: set[str]):
+def update_scores(cmps: dict[str, dict[str, tuple[float, float]]], scores: dict[str, float], fixed: set[str], power:float):
 	newscores: dict[str, float] = dict()
 
 	for vid in cmps:
@@ -62,32 +64,22 @@ def update_scores(cmps: dict[str, dict[str, tuple[float, float]]], scores: dict[
 			newscores[vid] = scores[vid]
 			continue
 
-		mmx:int = max(abs(cmps[vid][v2][0]) for v2 in cmps[vid]) # maximum of absolute values of votes (0 to 10)
-		if mmx == 0:
-			# All votes are zero, move this score to average of his comparisons votes
-			newscores[vid] = np.average([scores[v2] for v2 in cmps[vid]], weights=[cmps[vid][v2][1] for v2 in cmps[vid]])
-			continue
+		s1 = scores[vid]
+		move=0
+		div=1
+		for v2,sum_cnt in cmps[vid].items():
+			s2 = scores[v2]
+			w = sum_cnt[1]*power
+			if np.sign(sum_cnt[0]) != np.sign(s1-s2):
+				move += w* (sum_cnt[0]/10)
+			div += w
 
-		s = scores[vid]
-		furth:float = max(abs(scores[v2]-s) for v2 in cmps[vid]) # furthest distance from vid score and others
-		if furth < 0.01:
-			furth = 0.01 # Minimum twitching
-		elif furth > 0.5:
-			furth = 0.5 # Maximum twitching
-
-		# Say that furthest distance == maximum aboslute value
-		dist_per_point = furth/mmx
-
-		pts = 0.0
-		wgt = 0.0
-		for v2 in cmps[vid]:
-			pts += max(-1, min(1, scores[v2] + cmps[vid][v2][0] * dist_per_point)) * cmps[vid][v2][1]
-			wgt += cmps[vid][v2][1]
-
-		newscores[vid] = pts/wgt
+		if div > 0:
+			newscores[vid] = s1 + move/div
+		else:
+			newscores[vid] = scores[vid]
 
 	return newscores
-
 
 
 ################
@@ -146,10 +138,10 @@ if __name__ == '__main__':
 			fixed.add(v1)
 			scores[v1] = 1 if pos else -1
 
-
-	for i in range(100*len(scores)):
+	minmax = 999
+	for i in range(len(scores)):
 		# Update score
-		newscores = update_scores(cmps, scores, fixed)
+		newscores = update_scores(cmps, scores, fixed, 1/math.sqrt(i+1))
 
 		# Compute & print difference
 		diff = 0
@@ -161,10 +153,13 @@ if __name__ == '__main__':
 			diff += dif
 			if dif > max_diff:
 				max_diff = dif
-
 		scores = newscores
+
+		if max_diff < minmax:
+			minmax = max_diff
+
 		if i%25 == 0:
-			print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%})", flush=True)
+			print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%} - min: {minmax:0.2%})", flush=True)
 		if max_diff < 0.0001:
 			print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%})", flush=True)
 			break
@@ -178,4 +173,5 @@ if __name__ == '__main__':
 		if vid in fixed:
 			print(f"#### {YTDATA.videos.get(vid, vid)}")
 		else:
-			print(f"{scores[vid]:+4.0%} {YTDATA.videos.get(vid, vid)}")
+			dta = ', '.join(f"{scores[v]*100:+.0f}{vv[0]/vv[1]:+.0f}" for v,vv in cmps[vid].items())
+			print(f"{scores[vid]:+4.0%} {YTDATA.videos.get(vid, vid)} ({dta})")

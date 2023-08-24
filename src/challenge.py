@@ -1,20 +1,27 @@
 import argparse
+from datetime import datetime
+from dateutil.parser import isoparse
 
 import math
-import numpy as np
+import pytz
 from model.comparisons import ComparisonFile, ComparisonLine
 from model.youtube_api import YTData
 from model.collectivecriteriascores import CollectiveCriteriaScoresFile
 from model.individualcriteriascores import IndividualCriteriaScoresFile
 
 MIN_USERS = 3 # If no user specified: Video compared by less than x different users are excluded
-MIN_CMPS = 4 # If user specified: Video having less than x comparisons are excluded
-MAX_CMPS = 7 # If user specified: Video having more than x comparisons are excluded
+MAX_USERS = 15 # If no user specified: Video compared by more than x different users are excluded
+MIN_CMPS = 5 # If user specified: Video having less than x comparisons are excluded
+MAX_CMPS = 9 # If user specified: Video having more than x comparisons are excluded
+
+def d2(a,b):
+	return sum((ab[0]-ab[1])**2 for ab in zip(a,b))
 
 def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_path: str, langs:set[str]):
 	cmpFile = ComparisonFile(dataset)
 	ccsf = IndividualCriteriaScoresFile(dataset) if user else CollectiveCriteriaScoresFile(dataset)
 
+	vid_cmps: dict[str,set[str]] = dict()
 	vid_votes: dict[str, list[int]] = dict()
 	vid_usrs: dict[str, set[str]] = dict()
 
@@ -31,31 +38,39 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 
 		vid_usrs.setdefault(line.vid1, set()).add(line.user)
 		vid_usrs.setdefault(line.vid2, set()).add(line.user)
+
+		vid_cmps.setdefault(line.vid1, set()).add(line.vid2)
+		vid_cmps.setdefault(line.vid2, set()).add(line.vid1)
 	cmpFile.foreach(build_vid_votes)
 
 
 	# Remove if less than 3 different users, or 5 comparisons
-	for vid in vid_usrs.keys():
+	for vid in list(vid_usrs.keys()):
+		toRemove=False
 		if user: # Challenging on a specific user
 			if len(vid_votes[vid]) < MIN_CMPS or len(vid_votes[vid]) > MAX_CMPS:
-				vid_votes.pop(vid)
-
+				toRemove=True
 		else: # Challenging global
-			if len(vid_usrs[vid]) < 3:
-				vid_votes.pop(vid)
+			if len(vid_usrs[vid]) < MIN_USERS or len(vid_usrs[vid]) > MAX_USERS:
+				toRemove=True
 
-		if vid in vid_votes:
+		if toRemove:
+			vid_votes.pop(vid)
+			vid_usrs.pop(vid)
+			vid_cmps.pop(vid)
+		else:
 			vid_votes[vid].sort()
 
 
 	if fetch_path:
 		YTDATA.update(vids=vid_votes.keys(), save=fetch_path)
 
-	# Exclude languages other than EN, FR and unknown
 	for vid in list(vid_votes.keys()):
+		# Filter if video data not retrieved
 		if not vid in YTDATA.videos or not YTDATA.videos[vid]['title']:
 			vid_votes.pop(vid)
 			continue
+		# Filter by language
 		lng = YTDATA.videos[vid].get('defaultLng', '??')
 		if langs and (not lng in langs):
 			vid_votes.pop(vid)
@@ -66,20 +81,20 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 		ccsf.get_scores(criterion='largely_recommended', vids=vid_votes.keys()) # (score, uncertainty) = gscores[vid]['largely_recommended']
 	)
 
+	now = datetime.utcnow().replace(tzinfo=pytz.UTC)
 	vid_values: dict[str, float] = {
 		v: (
-			gScores[v]['largely_recommended'][0],
-			math.sqrt(YTDATA.videos[v]['duration']),
+			gScores[v]['largely_recommended'][0], # Score largely_recommended
+			math.sqrt(YTDATA.videos[v]['duration']), # Durée de la video
+			math.sqrt((now - isoparse(YTDATA.videos[v]['date'])).days), # Date de sortie
 		)
 		for v,vv in vid_votes.items()
-		if (gScores[v]['largely_recommended'][0] > 0 and min(vv) >= 0) \
-			or (user and max(vv) <= 0)
+		if (gScores[v]['largely_recommended'][0] > 0) # and min(vv) >= 0)
+		 	or user #and max(vv) <= 0)
 	}
+	print('Videos to be challenged:', len(vid_values))
 
 	final = sorted(vid_values.keys(), key=vid_values.get, reverse=True)
-
-	def d2(a,b):
-		return sum((ab[0]-ab[1])**2 for ab in zip(a,b))
 
 	already = set()
 	pairs:list[tuple[float,str,str]] = [] # d2,v1,v2
@@ -91,7 +106,14 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 		# Against who ?
 
 		ordrd = sorted(
-			(v2 for v2 in final if v2 not in already),
+			(
+				v2 for v2 in final
+				# v2 hasn't been returned yet
+				if v2 not in already
+				# no comparisons between v1 & v2
+				and v2 not in vid_cmps[vid]
+				and vid_usrs[vid].intersection(vid_usrs[v2])
+			),
 			key=lambda v2: d2(vid_values[vid],vid_values[v2]),
 			reverse=False
 		)
@@ -108,16 +130,19 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 		_d2 = p[0]
 		vid = p[1]
 		against = p[2]
-		(score1, len1) = vid_values[vid]
-		(score2, len2) = vid_values[against]
-		len1 = math.ceil((len1*len1)/60)
-		len2 = math.ceil((len2*len2)/60)
 
-		print(f"{i+1:2d}. https://tournesol.app/comparison?uidA=yt:{vid}&uidB=yt:{against}   (diff={_d2:.2f})")
-		print(f"- {YTDATA.videos.get(vid, vid)}")
-		print(f"    - {score1:+5.1f}🌻, {len1:3.0f}min ({len(vid_votes[vid])} cmps / {len(vid_usrs[vid])} users)")
-		print(f"- {YTDATA.videos.get(against, against)}")
-		print(f"    - {score2:+5.1f}🌻, {len2:3.0f}min ({len(vid_votes[against])} cmps / {len(vid_usrs[against])} users)")
+		score1 = vid_values[vid][0]
+		score2 = vid_values[against][0]
+		len1 = YTDATA.videos[vid]['duration']/60
+		len2 = YTDATA.videos[against]['duration']/60
+		since1 = YTDATA.videos[vid]['date']
+		since2 = YTDATA.videos[against]['date']
+
+		print(f"{i+1:2d}. https://tournesol.app/comparison?uidA=yt:{vid}&uidB=yt:{against}   (similarity={1/math.sqrt(_d2+1):.0%})")
+		print(f"- {str(YTDATA.videos.get(vid, vid))}")
+		print(f"    - {score1:+5.1f}🌻 ({len(vid_votes[vid])} cmps / {len(vid_usrs[vid])} users), {since1[:10]}, {len1:.0f}min")
+		print(f"- {str(YTDATA.videos.get(against, against))}")
+		print(f"    - {score2:+5.1f}🌻 ({len(vid_votes[against])} cmps / {len(vid_usrs[against])} users), {since2[:10]}, {len2:.0f}min")
 		print()
 
 ################
