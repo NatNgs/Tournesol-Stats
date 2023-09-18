@@ -89,7 +89,7 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 			math.sqrt((now - isoparse(YTDATA.videos[v]['date'])).days), # Date de sortie
 		)
 		for v,vv in vid_votes.items()
-		if (gScores[v]['largely_recommended'][0] > 0) # and min(vv) >= 0)
+		if (v in gScores and gScores[v]['largely_recommended'][0] > 0) # and min(vv) >= 0)
 		 	or user #and max(vv) <= 0)
 	}
 	print('Videos to be challenged:', len(vid_values))
@@ -110,9 +110,14 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 				v2 for v2 in final
 				# v2 hasn't been returned yet
 				if v2 not in already
-				# no comparisons between v1 & v2
+				# v1 & v2 are in same language
+				and YTDATA.videos[vid].get('defaultLng', '??') == YTDATA.videos[v2].get('defaultLng', '??')
+				# no comparisons between v1 <-> v2
 				and v2 not in vid_cmps[vid]
+				# there are users having seen both v1 & v2
 				and vid_usrs[vid].intersection(vid_usrs[v2])
+				# no comparison between v1 <-> any other video <-> v2
+				and (not vid_cmps[vid].intersection(vid_cmps[v2]))
 			),
 			key=lambda v2: d2(vid_values[vid],vid_values[v2]),
 			reverse=False
@@ -131,8 +136,8 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 		vid = p[1]
 		against = p[2]
 
-		score1 = vid_values[vid][0]
-		score2 = vid_values[against][0]
+		score1 = gScores[vid]['largely_recommended'][0]
+		score2 = gScores[against]['largely_recommended'][0]
 		len1 = YTDATA.videos[vid]['duration']/60
 		len2 = YTDATA.videos[against]['duration']/60
 		since1 = YTDATA.videos[vid]['date']

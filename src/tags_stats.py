@@ -2,6 +2,7 @@ import argparse
 from model.collectivecriteriascores import CollectiveCriteriaScoresFile
 from model.comparisons import ComparisonFile, ComparisonLine
 from model.youtube_api import YTData
+from statistics import median
 
 def group_keys(d: dict):
 	return {frozenset([k for k in d.keys() if d[k] == n]): n for n in set(d.values())}
@@ -87,20 +88,21 @@ def do_analyse_tags(vids: set[str], ytdata: YTData, tds: str):
 	ccsf = CollectiveCriteriaScoresFile(tds)
 	vid_scores: dict[str, float] = ccsf.get_vids_scores('largely_recommended', vids)
 
-	MIN_VIDS_KEEP_TAG=3
-	tags_scores: dict[str, float] = dict()
+	MIN_VIDS_KEEP_TAG=5
+	tags_scores: dict[str, tuple[float,float,float]] = dict()
 	for tag in list(grouped_tags_vids.keys()):
 		g = set(grouped_tags_vids[tag]).intersection(vid_scores.keys())
 		if len(g) < MIN_VIDS_KEEP_TAG:
 			grouped_tags_vids.pop(tag)
 			continue
-		tags_scores[tag] = sum([vid_scores[v] for v in g]) / len(g)
+		vals = [vid_scores[v] for v in g]
+		tags_scores[tag] = (sum(vals) / len(g), min(vals), median(vals), max(vals))
 
 	ordered = sorted(tags_scores.keys(), key=lambda k: tags_scores[k], reverse=True)
 	print('Analyzed', len(ordered), 'distinct tags')
 
 	for t in ordered:
-		print(f"{tags_scores[t]:+4.0f}🌻 (/{len(grouped_tags_vids[t])} videos) {' / '.join(sorted(t))}")
+		print(f"{tags_scores[t][0]:+4.0f}🌻 (min:{tags_scores[t][1]:.0f} med:{tags_scores[t][2]:.0f} max:{tags_scores[t][3]:.0f} /{len(grouped_tags_vids[t])} videos) {' / '.join(sorted(t))}")
 
 
 ##############

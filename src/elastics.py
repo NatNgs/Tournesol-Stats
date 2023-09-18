@@ -1,6 +1,6 @@
 import argparse
 import math
-import time
+from datetime import datetime
 import numpy as np
 from model.comparisons import ComparisonFile, ComparisonLine
 from model.youtube_api import YTData
@@ -34,14 +34,14 @@ def extractComparisons(cmpFile: ComparisonFile, user: str):
 	print('Extracting comparisons...')
 	cmpFile.foreach(parse_line)
 
-	# Remove vid with less than 3 comparisons
+	# Remove vid with less than 3 comparisons or 5 users
 	print('Filtering comparisons...')
 	l = len(cmps)
 	toredo = True
 	while toredo:
 		toredo = False
 		for vid in list(cmps.keys()):
-			if not user and len(usrs[vid]) < 5:
+			if not user and len(usrs[vid]) < 3:
 				cmps.pop(vid, None)
 				for sub in cmps.values():
 					sub.pop(vid, None)
@@ -56,7 +56,7 @@ def extractComparisons(cmpFile: ComparisonFile, user: str):
 	return cmps
 
 
-def update_scores(cmps: dict[str, dict[str, tuple[float, float]]], scores: dict[str, float], fixed: set[str], power:float):
+def update_scores_v1(cmps: dict[str, dict[str, tuple[float, float]]], scores: dict[str, float], fixed: set[str], power:float):
 	newscores: dict[str, float] = dict()
 
 	for vid in cmps:
@@ -80,6 +80,41 @@ def update_scores(cmps: dict[str, dict[str, tuple[float, float]]], scores: dict[
 			newscores[vid] = scores[vid]
 
 	return newscores
+
+
+
+def update_scores_v2(cmps: dict[str, dict[str, tuple[float, float]]], scores: dict[str, float], fixed: set[str], power:float):
+	newscores: dict[str, float] = dict()
+
+	for vid in cmps:
+		if vid in fixed:
+			newscores[vid] = scores[vid]
+			continue
+
+		# Group comparisons in 3 groups: under/equal/higher
+		under = list()
+		equal = list()
+		higher = list()
+		for v2,sum_cnt in cmps[vid].items():
+			dist = (scores[v1] - scores[v2]) # Between -2 & +2
+			avgvote = (sum_cnt[0]/sum_cnt[1]) # Between -10 & +10: expected direction & "length" of the distance
+			expt_dist = avgvote**3/1000 # Between -1 & +1
+			expt_note = np.clip(scores[v2] + expt_dist, -.99, .99)
+			force = sum_cnt[1] / math.sqrt(math.exp(expt_dist - dist)) # increases if many votes OR if distance if far from expected
+
+			(equal if avgvote == 0 else higher if avgvote > 0 else under).append( (expt_note, force) )
+
+		current_score = scores[vid]
+		moved_score = np.average([
+			(sum(v[0]*v[1] for v in l) / sum(v[1] for v in l))
+			for l in [under, equal, higher]
+			if l
+		])
+
+		newscores[vid] = (current_score*(1-power)) + (moved_score*power)
+
+	return newscores
+
 
 
 ################
@@ -139,9 +174,11 @@ if __name__ == '__main__':
 			scores[v1] = 1 if pos else -1
 
 	minmax = 999
-	for i in range(len(scores)):
+	t1 = datetime.now()
+	i = 0
+	for i in range(len(scores)**2):
 		# Update score
-		newscores = update_scores(cmps, scores, fixed, 1/math.sqrt(i+1))
+		newscores = update_scores_v2(cmps, scores, fixed, 1/math.sqrt(i+1))
 
 		# Compute & print difference
 		diff = 0
@@ -158,11 +195,14 @@ if __name__ == '__main__':
 		if max_diff < minmax:
 			minmax = max_diff
 
-		if i%25 == 0:
-			print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%} - min: {minmax:0.2%})", flush=True)
-		if max_diff < 0.0001:
-			print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%})", flush=True)
+		t2 = datetime.now()
+		if (t2 - t1).seconds >= 1:
+			print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%} - min: {minmax:0.2%})")
+			t1 = t2
+		if max_diff < 0.001:
 			break
+
+	print(f"Update {i+1}: updated {diff:0.2%} (max: {max_diff:0.2%})")
 
 
 	# # # Print # # #
@@ -173,5 +213,8 @@ if __name__ == '__main__':
 		if vid in fixed:
 			print(f"#### {YTDATA.videos.get(vid, vid)}")
 		else:
-			dta = ', '.join(f"{scores[v]*100:+.0f}{vv[0]/vv[1]:+.0f}" for v,vv in cmps[vid].items())
-			print(f"{scores[vid]:+4.0%} {YTDATA.videos.get(vid, vid)} ({dta})")
+			dta = ', '.join(f"{d[0]:+.0f}{d[1]:+.0f}"
+				for d in
+					sorted((scores[v]*100, vv[0]) for v,vv in cmps[vid].items())
+			)
+			print(f"{scores[vid]:+4.0%} {YTDATA.videos.get(vid, vid)}\n\t({dta})")
