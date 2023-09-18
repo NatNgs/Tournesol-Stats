@@ -17,7 +17,7 @@ MAX_CMPS = 9 # If user specified: Video having more than x comparisons are exclu
 def d2(a,b):
 	return sum((ab[0]-ab[1])**2 for ab in zip(a,b))
 
-def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_path: str, langs:set[str]):
+def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_path: str, langs:set[str], count:int):
 	cmpFile = ComparisonFile(dataset)
 	ccsf = IndividualCriteriaScoresFile(dataset) if user else CollectiveCriteriaScoresFile(dataset)
 
@@ -96,6 +96,7 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 
 	final = sorted(vid_values.keys(), key=vid_values.get, reverse=True)
 
+	total = 0
 	already = set()
 	pairs:list[tuple[float,str,str]] = [] # d2,v1,v2
 	for vid in final:
@@ -104,7 +105,6 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 		already.add(vid)
 
 		# Against who ?
-
 		ordrd = sorted(
 			(
 				v2 for v2 in final
@@ -125,13 +125,16 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 		if not ordrd:
 			break
 
+		total += len(ordrd)
 		against = ordrd[0]
 		already.add(against)
 		pairs.append((d2(vid_values[vid],vid_values[against]),vid,against))
 
+	print(f"Available pairs to be suggested: {total/2:.0f}")
+
 	pairs.sort()
 	print()
-	for i,p in enumerate(pairs[:10]):
+	for i,p in enumerate(pairs[:count]):
 		_d2 = p[0]
 		vid = p[1]
 		against = p[2]
@@ -154,6 +157,13 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 ##### MAIN #####
 ################
 
+def positiveInt(val):
+	try:
+		if int(val) > 0:
+			return int(val)
+	except:
+		pass
+	raise argparse.ArgumentTypeError(f"Expected a positive integer but value was: {val}")
 
 # Unload parameters
 parser = argparse.ArgumentParser()
@@ -161,6 +171,7 @@ parser.add_argument('-t', '--tournesoldataset', help='Directory where the public
 parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json', type=str)
 parser.add_argument('-l', '--lng', help='Video languages to keep. All languages enabled if unset. Use letters langage code ex: "en", "fr", "sp". Use "??" for videos of unknown language. Allow coma separated values to allow multiple like "fr,en,??"', default='', type=str)
 parser.add_argument('-u', '--user', help='Get statistics for given user. If unset, will compute global statistics', type=str, default=None)
+parser.add_argument('-n', '--nb', help='Number of how much suggestions to show (default: 10)', type=positiveInt, default=10)
 parser.add_argument('--fetch', help='If set, will fetch youtube API for updating data', action=argparse.BooleanOptionalAction, default=False)
 
 args = vars(parser.parse_args())
@@ -171,4 +182,11 @@ try:
 except FileNotFoundError:
 	pass
 
-compute_needs_for_challenge(args['tournesoldataset'], YTDATA, args['user'], args['cache'] if args['fetch'] else None, set(args['lng'].split(',')) if args['lng'] else None)
+compute_needs_for_challenge(
+	args['tournesoldataset'],
+	YTDATA,
+	args['user'],
+	args['cache'] if args['fetch'] else None,
+	set(args['lng'].split(',')) if args['lng'] else None,
+	args['nb']
+)
