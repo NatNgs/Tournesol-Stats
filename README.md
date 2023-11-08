@@ -71,7 +71,7 @@ Can take about 10minutes (if user has a lot of comparisons) to generate (it will
 - how many iterations per seconds it is optimizing
 - move: how much dit the last optimization modified the graph (big number = huge change, low number = almost no change)
 
-Will generate the output png file as `TournesolStats/data/output/graph_<username>.svg` (e.g. `graph_NatNgs.svg`)
+Will generate the output png file as `TournesolStats/output/graph_<username>.svg` (e.g. `graph_NatNgs.svg`)
 
 
 #### Known Limitations

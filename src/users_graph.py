@@ -9,6 +9,7 @@ import warnings
 from model.comparisons import ComparisonFile, ComparisonLine
 import numpy as np
 from scripts import svg
+from scripts.force_directed_graph import ForceLayout
 
 # Filter users
 USER_MIN_VIDEOS = 5
@@ -54,7 +55,7 @@ def load_graph(datasetpath: str, limit: str):
 	for u,lst in edges.items():
 		lst.sort(reverse=True)
 		for e in lst[:TOP_EDGES]:
-			graph.add_edge(u, e[1], num=e[0], pct=e[2], maxpct=e[3])
+			graph.add_edge(u, e[1], num=e[0], length=1/e[0], pct=e[2], maxpct=e[3])
 
 		graph.nodes[u]['date'] = users_date[u]
 		graph.nodes[u]['size'] = len(data[u])
@@ -68,17 +69,22 @@ def get_graph_layout(graph: nx.Graph):
 	start = time.time()
 
 	pos=nx.circular_layout(graph, center=(0,0))
+	LAYOUT = ForceLayout(graph)
+	LAYOUT.update_graph(edge_lengths='length', pos=pos)
 
 	i:int =1
 	itt:int =0
 	while time.time() - start < MAX_SPRING_DURATION:
 		print(f'.', end='', flush=True)
 		# weight= pct / num
-		pos = nx.spring_layout(graph, pos=pos, weight='num', iterations=i, scale=None)
-		itt += i
+		#pos = nx.spring_layout(graph, pos=pos, weight='num', iterations=i, scale=None)
 
+		itt += i
 		if itt > MAX_SPRING_ITERATIONS:
 			break
+
+		for _ in range(0,i):
+			LAYOUT.iterate3(attraction_factor=0.002, repulsion_factor=0.2, inertia_factor=0.5, repulse_upper_bound=2)
 
 		# Estimate number of iterations so that next loop takes around 10% of the process
 		i = int(MAX_SPRING_DURATION/10 * itt / (time.time() - start))+1
@@ -86,7 +92,7 @@ def get_graph_layout(graph: nx.Graph):
 	end = time.time()
 	print(f"\nOptimized nodes location with {itt} spring iterations in {end-start:0.3f}s")
 
-	return pos
+	return LAYOUT.get_pos()
 
 
 

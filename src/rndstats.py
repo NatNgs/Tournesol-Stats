@@ -5,6 +5,8 @@ import numpy as np
 from model.comparisons import ComparisonFile, ComparisonLine
 from model.youtube_api import YTData
 
+MAX_UPDATE = 2500
+
 def _print_statistics(nb_comps: dict[str, dict[str, int]]):
 	# Aggregate
 	nb_comparisons_by_criteria: dict[str, dict[int, int]] = dict() # Criteria, rank (how many comparisons), count (how many items have this many comparisons)
@@ -122,7 +124,7 @@ def print_creators_stats(cmpFile: ComparisonFile, YTDATA: YTData, fetchunknown: 
 	cmpFile.foreach(_video_lister)
 
 	if fetchunknown:
-		YTDATA.update(vids, save='data/YTData_cache.json', cachedDays=122, max_update=5000)
+		YTDATA.update(vids, save='data/YTData_cache.json', cachedDays=122, max_update=MAX_UPDATE)
 
 	unknownvid = set()
 	def _line_parser(line: ComparisonLine):

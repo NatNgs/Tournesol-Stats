@@ -11,7 +11,7 @@ from model.individualcriteriascores import IndividualCriteriaScoresFile
 
 MIN_USERS = 3 # If no user specified: Video compared by less than x different users are excluded
 MAX_USERS = 15 # If no user specified: Video compared by more than x different users are excluded
-MIN_CMPS = 5 # If user specified: Video having less than x comparisons are excluded
+MIN_CMPS = 4 # If user specified: Video having less than x comparisons are excluded
 MAX_CMPS = 9 # If user specified: Video having more than x comparisons are excluded
 
 def d2(a,b):

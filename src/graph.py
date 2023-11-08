@@ -23,11 +23,11 @@ def graph(tournesol_dataset, YTDATA: YTData, target_user, ytdata_cache):
 		# subgraph = nx.subgraph_view(graph, filter_node=lambda node: node in pos)
 		# print(f"\t### {nb}/{len(nodes_order)} nodes ###")
 		# pos = grph.optimize_graph_pos(subgraph, pos, nb)
-		# grph.draw_graph_to_file(subgraph, pos, videos, f"data/output/graph_{target_user}_{date}.svg")
+		# grph.draw_graph_to_file(subgraph, pos, videos, f"output/graph_{target_user}_{date}.svg")
 
 	subgraph = nx.subgraph_view(graph, filter_node=lambda node: node in pos)
 	pos = grph.optimize_graph_pos(subgraph, pos, 300)
-	grph.draw_graph_to_file(subgraph, pos, YTDATA.videos, f"data/output/graph_{target_user}.svg")
+	grph.draw_graph_to_file(subgraph, pos, YTDATA.videos, f"output/graph_{target_user}.svg")
 
 
 

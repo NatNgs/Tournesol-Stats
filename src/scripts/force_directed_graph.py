@@ -2,7 +2,67 @@ from typing import Callable
 import numpy as np
 from numpy._typing import NDArray
 import networkx as nx
+from numba import jit
 
+
+@jit(target_backend='cuda', nopython=True)
+def gpu_iterate(
+		n:int,
+		edges:list[float],
+		x: NDArray,
+		dx: NDArray,
+		attraction_factor:float=0.001,
+		repulsion_factor:float=0.001,
+		repulse_lower_bound:float=0.01,
+		repulse_upper_bound:float=np.inf,
+		inertia_factor:float=0.25,
+		iterations:int=1
+	):
+	"""
+	Args:
+		attraction_factor (float, optional): Increased value makes edged attraction force higher. Defaults to 0.001.
+		repulsion_factor (float, optional): Increased value makes disconnected edges repulsion higher. Defaults to 0.001.
+		repulse_lower_bound (float, optional): Minimum distance between two nodes to be enforced. Defaults to 0.01.
+		repulse_upper_bound (float, optional): Maximum distance between two disconnected nodes to apply repulsion force. Defaults to infinity.
+		inertia_factor (float, optional): Nodes will keep this factor of their speed between one iteration to the other. Between 0 and 1. Defaults to 0.25.
+	"""
+
+	repulse_lower = repulse_lower_bound ** 2
+	repulse_upper = repulse_upper_bound ** 2
+
+	for it in range(iterations):
+		dx *= inertia_factor
+
+		for i in range(1,n):
+			for j in range(0,i):
+				desired_d:float = edges[int(j*n+i)]
+				if desired_d < 0:
+					continue
+
+				vector_ji = np.array((x[i][0]-x[j][0], x[i][1]-x[j][1]))
+				current_d2 = vector_ji[0]**2 + vector_ji[1]**2
+
+				# Apply spring force
+				if desired_d > 0:
+					attraction = attraction_factor * vector_ji * (desired_d - np.sqrt(current_d2))
+					dx[i] += attraction
+					dx[j] -= attraction
+
+				# Apply repulsion
+				elif current_d2 < repulse_upper:
+					if current_d2 < repulse_lower: # prevent divide 0
+						current_d2 = repulse_lower
+
+					repulsion_x = repulsion_factor * vector_ji[0] / current_d2
+					repulsion_y = repulsion_factor * vector_ji[1] / current_d2
+					dx[i][0] += repulsion_x
+					dx[i][1] += repulsion_y
+					dx[j][0] -= repulsion_x
+					dx[j][1] -= repulsion_y
+
+		# Apply forces
+		x += dx
+	return (x, dx)
 
 class ForceLayout():
 	"""
@@ -25,17 +85,18 @@ class ForceLayout():
 		self.nodes: list[str] = []
 		self.x: NDArray = np.array([],dtype=(float,float))
 		self.dx: NDArray = np.array([],dtype=(float,float))
+		self.edges: list[list[float]] = list()
 
 
 	def update_graph(self,
-		weight: str or Callable[[str, str, dict[str, any]], float or None]=None,
-		pos:dict[str,tuple[float,float]]=None
+		pos:dict[str,tuple[float,float]]=None,
+		edge_lengths: str or Callable[[str, str, dict[str, any]], float or None]=None,
 	):
 		"""
 		Set or update graph, weights and positions of nodes. To be called after any change in the graph given in constructor
 
 		Args:
-			weight:
+			edge_lengths:
 				Will act as a desired edge length between nodes
 				(if value for an edge is 0, will act as 'distance can be anything', and no force will be applied on these nodes)
 
@@ -65,15 +126,44 @@ class ForceLayout():
 		self.nodes = new_nodes
 		self.x = np.array(new_x,dtype=(float,float))
 		self.dx = np.array(new_dx,dtype=(float,float))
+		self.edges = np.array([0] * ((self.n-1)*self.n))
 
 		# Precompute weights
 		for edge in self.G.edges.data():
 			w = 0
-			if isinstance(weight, Callable): # provided weight function
-				w = weight(edge)
-			elif weight in edge[2]: # provided weight property's name
-				w = edge[2][weight]
+			if isinstance(edge_lengths, Callable): # provided weight function
+				w = edge_lengths(edge)
+			elif edge_lengths in edge[2]: # provided weight property's name
+				w = edge[2][edge_lengths]
 			edge[2]['fdg_d'] = w # save desired distance
+			n1 = self.nodes.index(edge[0])
+			n2 = self.nodes.index(edge[1])
+			if n2 < n1:
+				n1,n2 = n2,n1
+			self.edges[n1*self.n + n2] = w
+
+	def iterate3(self,
+		attraction_factor:float=0.001,
+		repulsion_factor:float=0.001,
+		repulse_lower_bound:float=0.01,
+		repulse_upper_bound:float=np.inf,
+		inertia_factor:float=0.25,
+		iterations:int=1
+	):
+		new_x, new_dx = gpu_iterate(
+			self.n,
+			self.edges,
+			self.x,
+			self.dx,
+			attraction_factor,
+			repulsion_factor,
+			repulse_lower_bound,
+			repulse_upper_bound,
+			inertia_factor,
+			iterations
+		)
+		self.x = new_x
+		self.dx = new_dx
 
 
 	def iterate2(self,
@@ -98,7 +188,6 @@ class ForceLayout():
 
 			ji = -self.x[0:i] + self.x[i,None]
 			dists = np.linalg.norm(ji, axis=1)
-
 
 			for j in range(0,i):
 				nj = self.nodes[j]

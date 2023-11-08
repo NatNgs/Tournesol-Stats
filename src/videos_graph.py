@@ -6,6 +6,7 @@ import colorsys
 import time
 import warnings
 from model.collectivecriteriascores import CollectiveCriteriaScoresFile
+from model.individualcriteriascores import IndividualCriteriaScoresFile
 from model.comparisons import ComparisonFile, ComparisonLine
 from scripts import svg
 from scripts.nxlayouts import radialized_layout
@@ -124,14 +125,20 @@ def graph_to_svg(unorderedgraph: nx.Graph, colors: dict[str, float], filename: s
 	plt.close()
 
 
-def compute_colors(graph: nx.Graph, mode: str, tournesoldataset: str) -> dict[str, float]:
+def compute_colors(graph: nx.Graph, mode: str, tournesoldataset: str, user: str) -> dict[str, float]:
 	colors: dict[str, float] = None
 	start: float = None
 
 	start = time.time()
 	if mode == 'score':
 		print('Collective criteria scores...', flush=True)
-		colors = CollectiveCriteriaScoresFile(tournesoldataset).get_vids_scores('largely_recommended', vids=graph.nodes)
+		ccsf = CollectiveCriteriaScoresFile(tournesoldataset)
+		colors = {vid: data['largely_recommended'][0] for vid,data in ccsf.get_scores(criterion='largely_recommended', vids=graph.nodes).items()}
+
+	if mode == 'userscore':
+		print('Individual criteria scores...', flush=True)
+		icsf = IndividualCriteriaScoresFile(tournesoldataset)
+		colors = {vid: data['largely_recommended'][0] for vid,data in icsf.get_scores(criterion='largely_recommended', users=[user], vids=graph.nodes)[user].items()}
 
 	elif mode == 'degree':
 		print('Degrees...', flush=True)
@@ -191,8 +198,8 @@ def compute_colors(graph: nx.Graph, mode: str, tournesoldataset: str) -> dict[st
 		raise f"Unknown mode '{mode}'"
 
 	end = time.time()
-	print(f"(colors computed in {end - start:0.3f}s)")
-
+	print(f"({len(colors)} colors computed in {end - start:0.3f}s) ({graph.number_of_nodes()-len(colors)} not colored will not be displayed)")
+	print(f"min: {min(colors.values())} - max: {max(colors.values())}")
 	print() ##
 	return colors
 
@@ -214,7 +221,7 @@ if __name__ == '__main__':
 		help='Mode for computing weights for nodes color, default: %(default)',
 		choices=[
 			# @see function compute_weights
-			'score',
+			'score', 'userscore',
 			'degree', 'sqrtdeg',
 			'distmax', 'closeness',
 			'katz', 'katz-appx',
@@ -243,7 +250,7 @@ if __name__ == '__main__':
 	print() ##
 
 	# Analyse distances
-	weights: dict[str, float] = compute_colors(graph, args['mode'], args['tournesoldataset'])
+	weights: dict[str, float] = compute_colors(graph, args['mode'], args['tournesoldataset'], args['user'])
 	graph.remove_nodes_from(n for n in list(graph.nodes) if not n in weights)
 	graph_to_svg(graph, weights, args['out'], args['elastic_duration'])
 	svg.optimize(args['out'])
