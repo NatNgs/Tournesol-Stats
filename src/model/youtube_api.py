@@ -1,5 +1,6 @@
 import datetime
 import json
+import math
 import os
 import time
 import pandas as pd
@@ -242,7 +243,7 @@ class YTData:
 			if print_log:
 				print(f'YTData saved to file {os.path.realpath(file.name)}', flush=True)
 
-	def update(self, vids=[], cachedDays=365, max_update=1000, force=False, save=None):
+	def update(self, vids=[], cachedDays=365, max_update=0, force=False, save=None):
 		updateDate = (datetime.datetime.utcnow() + datetime.timedelta(days=-cachedDays)).isoformat() + 'Z'
 
 		# Find videos to update
@@ -250,8 +251,10 @@ class YTData:
 		for v in vids:
 			if force or (not v in self.videos):
 				vidsToUpdate.add(v)
-		newV = len(vidsToUpdate)
 
+		max_update = math.ceil(1.0*max(max_update, len(vidsToUpdate))/MAX_FETCH_SIZE)*MAX_FETCH_SIZE
+
+		newV = len(vidsToUpdate)
 		for vid in sorted(self.videos, key=lambda v: self.videos[v]['updated']):
 			if self.videos[vid]['updated'] > updateDate:
 				break
@@ -259,11 +262,11 @@ class YTData:
 			if len(vidsToUpdate) >= max_update:
 				break
 
+		# Update videos
 		toFetch = len(vidsToUpdate)
 		if toFetch > 0:
 			print(f"{newV} new videos to fetch + {toFetch-newV} to be updated")
 
-			# Update videos
 			for chunk in range(0, toFetch, MAX_FETCH_SIZE):
 				print(f"Fetching {chunk}/{toFetch} videos...")
 				newvideos = _fetch_video_data(list(vidsToUpdate)[chunk:chunk+MAX_FETCH_SIZE])
@@ -304,6 +307,33 @@ class YTData:
 			vdata: Video = self.videos[vdata]
 			if vdata['cid'] and vdata['cid'] in self.channels:
 				vdata.channel = self.channels[vdata['cid']]
+
+	def updateTournesol(self, vids=[], cachedDays=365, max_update=1000, save=None):
+		updateDate = (datetime.datetime.utcnow() + datetime.timedelta(days=-cachedDays)).isoformat() + 'Z'
+
+		# Find videos to update
+		vidsToUpdate: set[str] = {v for v in vids if v in self.videos}
+		for vid in sorted(self.videos, key=lambda v: self.videos[v]['updated']):
+			if self.videos[vid]['updated'] > updateDate:
+				break
+			if not vid in vidsToUpdate:
+				vidsToUpdate.add(vid)
+				if len(vidsToUpdate) >= max_update:
+					break
+
+		# Apply update
+		asList=list(vidsToUpdate)
+		toFetch = len(asList)
+		if toFetch > 0:
+			for i in range(0, toFetch):
+				print(f"Fetching {i}/{toFetch} videos...")
+				newvideo = _fetch_tournesol_data(asList[i])
+				## TODO: Enrich self.videos[vid] object
+				self.videos[vid] = Video(newvideo)
+				if save:
+					self.save(save, print_log=False)
+			print(f'Fetched {toFetch}/{toFetch} videos.')
+
 
 	def load_ytHistory(self, history_file: str, removeOthers=False):
 		# Add seen videos from yt history

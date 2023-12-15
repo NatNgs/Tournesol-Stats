@@ -48,6 +48,7 @@ class CollectiveCriteriaScoresFile:
 		self.foreach(parse_line)
 		return data
 
+	# deprecated
 	def get_vids_scores(self, criterion: str, vids: Iterable[str]=None, ignored: Iterable[str]=None):
 		vids_scores: dict[str, float] = dict()
 		def parse_line(line: CCSLine):
@@ -56,6 +57,7 @@ class CollectiveCriteriaScoresFile:
 		self.foreach(parse_line)
 		return vids_scores
 
+	# deprecated
 	def get_vids_scores_criteria(self, vids: Iterable[str]=None, ignored: Iterable[str]=None):
 		vids_scores: dict[str, dict[str,float]] = dict()
 		def parse_line(line: CCSLine):

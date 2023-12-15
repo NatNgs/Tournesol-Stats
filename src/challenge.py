@@ -9,15 +9,15 @@ from model.youtube_api import YTData
 from model.collectivecriteriascores import CollectiveCriteriaScoresFile
 from model.individualcriteriascores import IndividualCriteriaScoresFile
 
-MIN_USERS = 3 # If no user specified: Video compared by less than x different users are excluded
-MAX_USERS = 15 # If no user specified: Video compared by more than x different users are excluded
+MIN_USERS = 2 # If no user specified: Video compared by less than x different users are excluded
+MAX_USERS = 9 # If no user specified: Video compared by more than x different users are excluded
 MIN_CMPS = 4 # If user specified: Video having less than x comparisons are excluded
 MAX_CMPS = 9 # If user specified: Video having more than x comparisons are excluded
 
 def d2(a,b):
 	return sum((ab[0]-ab[1])**2 for ab in zip(a,b))
 
-def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_path: str, langs:set[str], count:int):
+def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_path: str, langs:set[str], count:int, f_short:bool):
 	cmpFile = ComparisonFile(dataset)
 	ccsf = IndividualCriteriaScoresFile(dataset) if user else CollectiveCriteriaScoresFile(dataset)
 
@@ -87,6 +87,8 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 			gScores[v]['largely_recommended'][0], # Score largely_recommended
 			math.sqrt(YTDATA.videos[v]['duration']), # Durée de la video
 			math.sqrt((now - isoparse(YTDATA.videos[v]['date'])).days), # Date de sortie
+			len(vid_cmps[v]), # Nombre de comparaisons (nb autres vidéos)
+			len(vid_usrs[v]), # Nombre d'utilisateurs
 		)
 		for v,vv in vid_votes.items()
 		if (v in gScores and gScores[v]['largely_recommended'][0] > 0) # and min(vv) >= 0)
@@ -147,11 +149,12 @@ def compute_needs_for_challenge(dataset: str, YTDATA: YTData, user: str, fetch_p
 		since2 = YTDATA.videos[against]['date']
 
 		print(f"{i+1:2d}. https://tournesol.app/comparison?uidA=yt:{vid}&uidB=yt:{against}   (similarity={1/math.sqrt(_d2+1):.0%})")
-		print(f"- {str(YTDATA.videos.get(vid, vid))}")
-		print(f"    - {score1:+5.1f}🌻 ({len(vid_votes[vid])} cmps / {len(vid_usrs[vid])} users), {since1[:10]}, {len1:.0f}min")
-		print(f"- {str(YTDATA.videos.get(against, against))}")
-		print(f"    - {score2:+5.1f}🌻 ({len(vid_votes[against])} cmps / {len(vid_usrs[against])} users), {since2[:10]}, {len2:.0f}min")
-		print()
+		if not f_short:
+			print(f"- {str(YTDATA.videos.get(vid, vid))}")
+			print(f"    - {score1:+5.1f}🌻 ({len(vid_votes[vid])} cmps / {len(vid_usrs[vid])} users), {since1[:10]}, {len1:.0f}min")
+			print(f"- {str(YTDATA.videos.get(against, against))}")
+			print(f"    - {score2:+5.1f}🌻 ({len(vid_votes[against])} cmps / {len(vid_usrs[against])} users), {since2[:10]}, {len2:.0f}min")
+			print()
 
 ################
 ##### MAIN #####
@@ -172,6 +175,7 @@ parser.add_argument('-c', '--cache', help='Youtube data cache file location', de
 parser.add_argument('-l', '--lng', help='Video languages to keep. All languages enabled if unset. Use letters langage code ex: "en", "fr", "sp". Use "??" for videos of unknown language. Allow coma separated values to allow multiple like "fr,en,??"', default='', type=str)
 parser.add_argument('-u', '--user', help='Get statistics for given user. If unset, will compute global statistics', type=str, default=None)
 parser.add_argument('-n', '--nb', help='Number of how much suggestions to show (default: 10)', type=positiveInt, default=10)
+parser.add_argument('-s', '--short', help='Hide video details', action=argparse.BooleanOptionalAction, default=False)
 parser.add_argument('--fetch', help='If set, will fetch youtube API for updating data', action=argparse.BooleanOptionalAction, default=False)
 
 args = vars(parser.parse_args())
@@ -188,5 +192,6 @@ compute_needs_for_challenge(
 	args['user'],
 	args['cache'] if args['fetch'] else None,
 	set(args['lng'].split(',')) if args['lng'] else None,
-	args['nb']
+	args['nb'],
+	args['short']
 )

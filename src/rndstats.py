@@ -159,7 +159,7 @@ def print_global_stats(cmpFile: ComparisonFile, cache: YTData, fetchunknown: boo
 	print
 
 
-def print_user_specific_stats(cmpFile: ComparisonFile, user: str):
+def print_user_specific_stats(cmpFile: ComparisonFile, YTDATA: YTData, user: str, fetchunknown: bool):
 	print(f"### {args['user']} Statistics ###")
 	criteria_values: dict[str, list[int]] = dict() # {criteria: [<int>, .. (index=10)<int>]}
 
@@ -173,6 +173,9 @@ def print_user_specific_stats(cmpFile: ComparisonFile, user: str):
 		criteria_values[line.criterion][int(np.abs(line.score))] += 1
 
 	cmpFile.foreach(line_parser)
+
+	if fetchunknown:
+		YTDATA.update(criteria_values.keys(), save='data/YTData_cache.json', cachedDays=122, max_update=MAX_UPDATE)
 
 	print
 	print(f'##### {user} stats #####')
@@ -209,13 +212,13 @@ args = vars(parser.parse_args())
 
 cmpFile = ComparisonFile(args['tournesoldataset'])
 
-if args['user']:
-	print_user_specific_stats(cmpFile, args['user'])
-else:
-	YTDATA = YTData()
-	try:
-		YTDATA.load(args['cache'])
-	except FileNotFoundError:
-		pass
+YTDATA = YTData()
+try:
+	YTDATA.load(args['cache'])
+except FileNotFoundError:
+	pass
 
+if args['user']:
+	print_user_specific_stats(cmpFile, YTDATA, args['user'], args['fetch'])
+else:
 	print_global_stats(cmpFile, YTDATA, args['fetch'])
