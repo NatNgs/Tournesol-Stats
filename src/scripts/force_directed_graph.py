@@ -171,7 +171,7 @@ class ForceLayout():
 		repulsion_factor:float=0.001,
 		repulse_lower_bound:float=0.01,
 		repulse_upper_bound:float=np.inf,
-		inertia_factor:float=0.25
+		inertia_factor:float=0.25,
 	):
 		"""
 		Args:
@@ -214,6 +214,8 @@ class ForceLayout():
 					self.dx[j] -= repulsion
 
 		# Apply forces
+		dabs = np.abs(self.dx)
+		self.dx = np.where(dabs > 1, np.sign(self.dx) * np.sqrt(dabs), self.dx)
 		self.x += self.dx
 
 
