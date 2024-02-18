@@ -87,7 +87,7 @@ Will generate the output png file as `TournesolStats/output/graph_<username>.svg
 ### Video Graph ('video_graph.py')
 
 <div align="center">
-	<img src="examples/video_graph/users/NatNgs.svg" align="center" style="max-height:25em;"/>
+	<img src="examples/video_graph/users/natngs.svg" align="center" style="max-height:25em;"/>
 </div>
 
 Compute and display simple graph with various parameters
