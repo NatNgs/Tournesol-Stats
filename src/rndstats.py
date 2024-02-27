@@ -11,7 +11,7 @@ def _print_statistics(nb_comps: dict[str, dict[str, int]]):
 	# Aggregate
 	nb_comparisons_by_criteria: dict[str, dict[int, int]] = dict() # Criteria, rank (how many comparisons), count (how many items have this many comparisons)
 	for criteria in nb_comps:
-		nb_comparisons_by_criteria[criteria]: dict[int, int] = dict()
+		nb_comparisons_by_criteria[criteria] = dict()
 		for count in nb_comps[criteria].values():
 			if not count in nb_comparisons_by_criteria[criteria]:
 				nb_comparisons_by_criteria[criteria][count] = 1

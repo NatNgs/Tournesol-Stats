@@ -213,7 +213,7 @@ class YTData:
 	def load(self, filename: str):
 		vcnt = 0
 		ccnt = 0
-		with open(filename, 'r') as file:
+		with open(filename, 'r', encoding='UTF-8') as file:
 			data = json.load(file)
 			for v in data['VIDEOS']:
 				if not v in self.videos or self.videos[v]['updated'] < data['VIDEOS'][v]['updated']:
@@ -232,7 +232,7 @@ class YTData:
 			'VIDEOS': {k:self.videos[k].raw for k in self.videos},
 			'CHANNELS': {k:self.channels[k].raw for k in self.channels}
 		}
-		with open(filename, 'w') as file:
+		with open(filename, 'w', encoding='UTF-8') as file:
 			json.dump(
 				json_data,
 				file,

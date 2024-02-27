@@ -112,8 +112,8 @@ def graph_to_svg(unorderedgraph: nx.Graph, colors: dict[str, float], filename: s
 
 	nx.draw_networkx_edges(graph,
 		pos=pos,
-		edge_color='#0004',
-		width=0.1,
+		edge_color='#8888',
+		width=0.5,
 	)
 
 	print(f"Saving graph to {filename}...")
