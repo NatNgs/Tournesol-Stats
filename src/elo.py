@@ -26,7 +26,7 @@ def compute_elo_ranking(cmpFile:ComparisonFile, YTDATA: YTData, user: str):
 
 
 	ELO_POWER: float = math.sqrt(1/len(elo))
-	print(f"Running competition: ")
+	print(f"Running competition:", end=' ')
 	start = 0
 	for i in range(1,len(elo)):
 		now = time.time()

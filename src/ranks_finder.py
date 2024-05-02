@@ -69,7 +69,7 @@ def find_ranks(cmps):
 		else:
 			todo.add(v1)
 	topranks = ranker(top, todo, cmps) # (ranked, not_ranked)
-	print('\tTopRanks: ', len(topranks), len(todo))
+	print('\tTop: ', len(topranks))
 
 	# Find fixed BOTTOM scores
 	bottom = set()
@@ -83,7 +83,7 @@ def find_ranks(cmps):
 			bottom.add(v1)
 			todo.remove(v1)
 	bottomranks = ranker(bottom, topranks[1], cmps, reversed=True)
-	print('\tBottomRanks: ', len(bottom), len(bottomranks), len(todo))
+	print('\tBottom: ', len(bottom))
 
 	unknownindex = len(topranks)
 	if todo or bottomranks:
@@ -145,7 +145,7 @@ if __name__ == '__main__':
 	cmps: dict[str, dict[str, tuple[float, float]]] = extractComparisons(cmpFile, args['user']) # {vid: {vid2: (sum, count)}}
 
 	(ranked,unknownIndex) = find_ranks(cmps)
-	print(len(ranked), unknownIndex)
+	print(f"{len(ranked)} ranks, {unknownIndex} videos unable to be ranked\n")
 
 	ranks={vid:i for i,vids in enumerate(ranked) for vid in vids}
 
@@ -157,8 +157,8 @@ if __name__ == '__main__':
 		else:
 			print(f"#### RANK {rnk}")
 		for vid in vids:
-			dta = ', '.join(f"{ranks.get(i, '?')}({cmps[vid][i][0]:+d})" for i in cmps[vid] if (rnk < unknownIndex and ranks.get(i, -1) <= rnk) or (rnk > unknownIndex and ranks.get(i, -1) >= rnk))
-			if dta:
-				print(f"\t- {YTDATA.videos.get(vid, vid)}\n\t\t{dta}")
-			else:
-				print(f"\t- {YTDATA.videos.get(vid, vid)}")
+			#dta = ', '.join(f"{ranks.get(i, '?')}({cmps[vid][i][0]:+d})" for i in cmps[vid] if (rnk < unknownIndex and ranks.get(i, -1) <= rnk) or (rnk > unknownIndex and ranks.get(i, -1) >= rnk))
+			#if dta:
+			#	print(f"\t- [{vid}] {YTDATA.videos.get(vid, vid)}\n\t\t{dta}")
+			#else:
+				print(f"\t- [{vid}] {YTDATA.videos.get(vid, vid)}")
