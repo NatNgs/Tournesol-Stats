@@ -80,7 +80,7 @@ def _vdata_from_ytdata(data, cache:dict[str,Video]=None):
 				defaultLng = cache[vid]['defaultLng']
 			else:
 				t_vdata = _fetch_tournesol(f"polls/videos/entities/yt:{vid}")
-				if 'metadata' in t_vdata['entity'] and 'language' in t_vdata['entity']['metadata']:
+				if 'entity' in t_vdata and 'metadata' in t_vdata['entity'] and 'language' in t_vdata['entity']['metadata']:
 					newvideo['defaultLng'] = t_vdata['entity']['metadata']['language'] or '??'
 		if defaultLng != '??':
 			localizations.add(defaultLng)
