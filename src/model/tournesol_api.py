@@ -12,7 +12,7 @@ def timestamp():
 	return datetime.datetime.now(tz=datetime.timezone.utc).isoformat(timespec='seconds')
 
 class TournesolAPI:
-	def __init__(self, jwt:str, cache_file:str):
+	def __init__(self, jwt:str=None, cache_file:str=None):
 		self.file = cache_file
 		self.jwt = jwt
 		self.last_api_call=time.time()
@@ -24,18 +24,20 @@ class TournesolAPI:
 			'me/comparisons': {}, # "entity_a\tentity_b": {<cdata>}
 			'me/videos': {}, # "vid": {vdata}
 		}
-		try:
-			with gzip.open(self.file, 'rt', encoding='UTF-8') as file:
-				loaded = json.load(file)
-				for k in self.cache:
-					if k in loaded:
-						self.cache[k] = loaded[k]
-		except:
-			print('Failed to load file', self.file)
+		if cache_file:
+			try:
+				with gzip.open(self.file, 'rt', encoding='UTF-8') as file:
+					loaded = json.load(file)
+					for k in self.cache:
+						if k in loaded:
+							self.cache[k] = loaded[k]
+			except:
+				print('Failed to load file', self.file)
 
 	def saveCache(self):
-		with gzip.open(self.file, 'wt', encoding='UTF-8') as file:
-			json.dump(self.cache, file)
+		if self.file:
+			with gzip.open(self.file, 'wt', encoding='UTF-8') as file:
+				json.dump(self.cache, file)
 
 	def callTournesol(self, path: str):
 		if path[0] == '/': # Cut leading slash in path
@@ -178,3 +180,20 @@ def get(json:VData, default, *fields):
 def get_individual_score(vdata:VData) -> float:
 	arr = [s for s in get(vdata, [], 'individual_rating', 'criteria_scores') if s['criteria'] == 'largely_recommended']
 	return arr[0]['score'] if arr else None
+
+def pretty_print_vdata(vdata: VData) -> str:
+	if not 'entity' in vdata:
+		return '[???]'
+
+	vid = vdata['entity']['uid']
+
+	score = None
+	if 'collective_rating' in vdata and 'tournesol_score' in vdata['collective_rating']:
+		score = f" {vdata['collective_rating']['tournesol_score']:.0f}🌻 ({vdata['collective_rating']['n_comparisons']}cmp/{vdata['collective_rating']['n_contributors']}usr)"
+
+	if 'metadata' in vdata['entity'] and 'name' in vdata['entity']['metadata']:
+		chn = vdata['entity']['metadata']['uploader'] or '???'
+		nam = vdata['entity']['metadata']['name']
+		return f"[{vid}]{'' if not score else score} {chn}: {nam}"
+
+	return f"[{vid}]{'' if not score else score}"
