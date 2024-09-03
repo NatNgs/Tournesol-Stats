@@ -1,11 +1,13 @@
-import datetime
+from __future__ import annotations
+import os
 import json
 import math
-import os
 import time
 import pandas as pd
-import googleapiclient.discovery
+import datetime
+import requests
 import googleapiclient.http
+import googleapiclient.discovery
 
 API_KEY_LOCATION = os.path.expanduser('~/Documents/YT_API_KEY.txt')
 MAX_FETCH_SIZE = 50
@@ -20,30 +22,25 @@ def _get_connection() -> googleapiclient.discovery.Resource:
 	return googleapiclient.discovery.build('youtube', 'v3', developerKey = _get_yt_key())
 
 
-def _fetch_video_data(videosToFetch: list[str]):
-	#
-	# Requesting missing data
-	#
-	youtube = _get_connection()
-	data = []
+LAST_TNSL_CALL=datetime.datetime.now(datetime.timezone.utc)
+VData=dict # type
+def _fetch_tournesol(path):
+	global LAST_TNSL_CALL
+	BASE_URL='https://api.tournesol.app/'
+	wait=1-(datetime.datetime.now(datetime.timezone.utc)-LAST_TNSL_CALL).total_seconds()
+	if wait > 0:
+		time.sleep(wait)
+	print('\tGET', BASE_URL + path)
+	response = requests.get(BASE_URL + path)
+	LAST_TNSL_CALL = datetime.datetime.now(datetime.timezone.utc)
+	return response.json()
 
-	try:
-		toFetch = len(videosToFetch)
-		for i in range(0, toFetch, MAX_FETCH_SIZE):
-			request: googleapiclient.http.HttpRequest = youtube.videos().list(
-				part='id,snippet,statistics,localizations,contentDetails,topicDetails', # Information to get
-				id= ','.join(videosToFetch[i:i+MAX_FETCH_SIZE]) # vid to get
-			)
-			data.extend(request.execute()['items'])
-			time.sleep(1.5) # Anti-spam
-	except Exception as e:
-		print('Fetch failed.')
-		raise e
 
+def _vdata_from_ytdata(data, cache:dict[str,Video]=None):
 	#
 	# Parsing youtube data output
 	#
-	newvideos = {}
+	newvideos:dict[str,any] = {}
 	nowDate = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
 	for vdata in data:
 		vid = vdata['id']
@@ -68,17 +65,27 @@ def _fetch_video_data(videosToFetch: list[str]):
 			if 'favoriteCount' in vstatistics: newvideo['favoriteCount'] = int(vstatistics['favoriteCount'])
 			if 'commentCount' in vstatistics: newvideo['commentCount'] = int(vstatistics['commentCount'])
 
+		# Localisations
 		localizations = {d.strip()[:2] for d in vdata.get('localizations', {})}
 		localizations.discard('')
 		newvideo['localizations'] = list(localizations)
 
-		if defaultLng != '??':
-			localizations.add(defaultLng)
 		if defaultLng == '??' and len(localizations) == 1:
 			for l in localizations:
 				defaultLng = l
 		newvideo['defaultLng'] = defaultLng
+		if defaultLng == '??':
+			# Missing youtube data: Enrich with tournesolData
+			if cache and cache.get(vid,{}).get('defaultLng','??') != '??':
+				defaultLng = cache[vid]['defaultLng']
+			else:
+				t_vdata = _fetch_tournesol(f"polls/videos/entities/yt:{vid}")
+				if 'entity' in t_vdata and 'metadata' in t_vdata['entity'] and 'language' in t_vdata['entity']['metadata']:
+					newvideo['defaultLng'] = t_vdata['entity']['metadata']['language'] or '??'
+		if defaultLng != '??':
+			localizations.add(defaultLng)
 
+		# Tags, duration, definition
 		if 'contentDetails' in vdata:
 			vcontent = vdata['contentDetails']
 			if 'duration' in vcontent: newvideo['duration'] = int(pd.Timedelta(vcontent['duration']).total_seconds()) # "PT13M40S" => 00:13:40 > int(13*60+40)
@@ -89,13 +96,42 @@ def _fetch_video_data(videosToFetch: list[str]):
 				for t in vdata['topicDetails'].get('topicCategories', []) # t: 'https://<??>.wikipedia.org/wiki/<Topic>
 			]
 
+	return newvideos
+
+LAST_YT_CALL=datetime.datetime.now(datetime.timezone.utc)
+def _fetch_video_data(videosToFetch: list[str], cache:dict[str,Video]|None):
+	global LAST_YT_CALL
+	#
+	# Requesting missing data
+	#
+	youtube = _get_connection()
+	newvideos = {}
+
+	try:
+		toFetch = len(videosToFetch)
+		for i in range(0, toFetch, MAX_FETCH_SIZE):
+			wait=(1.5)-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
+			if wait > 0:
+				time.sleep(wait)
+			request: googleapiclient.http.HttpRequest = youtube.videos().list(
+				part='id,snippet,statistics,localizations,contentDetails,topicDetails', # Information to get
+				id= ','.join(videosToFetch[i:i+MAX_FETCH_SIZE]) # vid to get
+			)
+			response = request.execute()['items']
+			LAST_YT_CALL = datetime.datetime.now(datetime.timezone.utc)
+			resp = _vdata_from_ytdata(response, cache=cache)
+			newvideos.update(resp)
+	except Exception as e:
+		print('Fetch failed.')
+		raise e
+
+	nowDate = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
 	for vid in videosToFetch:
 		if not vid in newvideos:
 			newvideos[vid] = {
 				'vid': vid,
 				'updated': nowDate
 			}
-
 	return newvideos
 
 
@@ -164,6 +200,9 @@ class Video(dict):
 		self.id: str = json['vid']
 		self.channel: Channel = None
 
+	def __setitem__(self, key, val):
+		self.raw[key] = val
+
 	def __getitem__(self, key):
 		return self.raw.get(key)
 
@@ -208,7 +247,6 @@ class YTData:
 	def __init__(self):
 		self.videos: dict[str, Video] = dict()
 		self.channels: dict[str, Channel] = dict()
-		pass
 
 	def load(self, filename: str):
 		vcnt = 0
@@ -256,11 +294,10 @@ class YTData:
 
 		newV = len(vidsToUpdate)
 		for vid in sorted(self.videos, key=lambda v: self.videos[v]['updated']):
-			if self.videos[vid]['updated'] > updateDate:
+			if len(vidsToUpdate) >= max_update \
+				or self.videos[vid]['updated'] > updateDate:
 				break
 			vidsToUpdate.add(vid)
-			if len(vidsToUpdate) >= max_update:
-				break
 
 		# Update videos
 		toFetch = len(vidsToUpdate)
@@ -269,7 +306,7 @@ class YTData:
 
 			for chunk in range(0, toFetch, MAX_FETCH_SIZE):
 				print(f"Fetching {chunk}/{toFetch} videos...")
-				newvideos = _fetch_video_data(list(vidsToUpdate)[chunk:chunk+MAX_FETCH_SIZE])
+				newvideos = _fetch_video_data(list(vidsToUpdate)[chunk:chunk+MAX_FETCH_SIZE], self.videos)
 				for vid in newvideos:
 					self.videos[vid] = Video(newvideos[vid])
 				if save:
@@ -307,33 +344,6 @@ class YTData:
 			vdata: Video = self.videos[vdata]
 			if vdata['cid'] and vdata['cid'] in self.channels:
 				vdata.channel = self.channels[vdata['cid']]
-
-	def updateTournesol(self, vids=[], cachedDays=365, max_update=1000, save=None):
-		updateDate = (datetime.datetime.utcnow() + datetime.timedelta(days=-cachedDays)).isoformat() + 'Z'
-
-		# Find videos to update
-		vidsToUpdate: set[str] = {v for v in vids if v in self.videos}
-		for vid in sorted(self.videos, key=lambda v: self.videos[v]['updated']):
-			if self.videos[vid]['updated'] > updateDate:
-				break
-			if not vid in vidsToUpdate:
-				vidsToUpdate.add(vid)
-				if len(vidsToUpdate) >= max_update:
-					break
-
-		# Apply update
-		asList=list(vidsToUpdate)
-		toFetch = len(asList)
-		if toFetch > 0:
-			for i in range(0, toFetch):
-				print(f"Fetching {i}/{toFetch} videos...")
-				newvideo = _fetch_tournesol_data(asList[i])
-				## TODO: Enrich self.videos[vid] object
-				self.videos[vid] = Video(newvideo)
-				if save:
-					self.save(save, print_log=False)
-			print(f'Fetched {toFetch}/{toFetch} videos.')
-
 
 	def load_ytHistory(self, history_file: str, removeOthers=False):
 		# Add seen videos from yt history
