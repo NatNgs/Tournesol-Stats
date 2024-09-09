@@ -242,7 +242,7 @@ def __main__():
 	cmpgrph = CmpGraph()
 
 	# Fetch comparisons
-	JWT='Bearer xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+	JWT='Bearer 0qo5cfCZACuvMSMbDGAuJYf6GXKfBi'
 	cmpgrph.add_evaluations(
 		filter(None,
 			map(tournesol_to_pair,
@@ -250,7 +250,7 @@ def __main__():
 			)
 		)
 	)
-	cmpgrph.draw('output/elevations.svg')
+	cmpgrph.draw('output/elevations_NatNgs.svg')
 
 	bstcmp = cmpgrph.recommand_comparison()[0]
 	print(f"https://tournesol.app/comparison?uidA={bstcmp[0][0]}&uidB={bstcmp[0][1]} {bstcmp[1]}")

@@ -3,6 +3,7 @@ import json
 import time
 import datetime
 import requests
+from typing import Callable
 
 # Type
 VData=dict[str,any]
@@ -21,8 +22,11 @@ class TournesolAPI:
 
 		# Load cache
 		self.cache:dict[str,dict[str,any]] = {
+			'all/videos_cached': "2000-12-31T23:59:59", # When was all/videos refreshed for the last time ?
+			'all/videos': {}, # "vid": {vdata}
+
 			'me/comparisons': {}, # "entity_a\tentity_b": {<cdata>}
-			'me/videos': {}, # "vid": {vdata}
+			'me/videos': {}, # "vid": {vdata} # TODO: Remove "entity":{...} and use it from 'all/videos'
 		}
 		if cache_file:
 			try:
@@ -51,7 +55,7 @@ class TournesolAPI:
 		response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
 		return response.json()
 
-	def callTournesolMulti(self, path: str, args:str=None, start:int=0, end:int=0, fn_continue=None) -> list[VData]:
+	def callTournesolMulti(self, path: str, args:str=None, start:int=0, end:int=0, fn_continue:Callable[[list[VData]], bool]=None) -> list[VData]:
 		LIMIT=1000
 		URL=f'{path}?limit={LIMIT}' + (('&' + args) if args else '')
 		offset=start
@@ -80,6 +84,34 @@ class TournesolAPI:
 
 		return allRes
 
+
+	def getAllVideos(self, useCache=True, saveCache=True) -> list[VData]:
+		now_w = datetime.datetime.now(tz=datetime.timezone.utc).isocalendar() # (year, week_num (1-52), week_day (Mon=1, Sun=7))
+		cached_w = datetime.datetime.fromisoformat(self.cache['all/videos_cached']).isocalendar()
+		# Refresh cache if we are after the last week data was cached
+		if not useCache or (
+			now_w.year > cached_w.year
+			or (now_w.year == cached_w.year and (now_w.week > cached_w.week or (
+					now_w.week == cached_w.week and now_w.weekday < cached_w.weekday)))):
+			# TODO: Only call refresh on recent videos (depending on all/videos_cached date)
+			def onprogress(res:list[VData]) -> bool:
+				if saveCache:
+					for vdata in res:
+						vid = vdata['entity']['uid']
+						self.cache['all/videos'][vid] = vdata
+
+					self.saveCache()
+				return True
+
+			allRes = self.callTournesolMulti(f"polls/videos/recommendations/", "unsafe=false", fn_continue=onprogress) # TODO: unsafe=true
+			for vdata in allRes:
+				vid = vdata['entity']['uid']
+				self.cache['all/videos'][vid] = vdata
+
+			if saveCache:
+				self.cache['all/videos_cached'] = timestamp()
+				self.saveCache()
+		return list(self.cache['all/videos'].values())
 
 	def getVData(self, vid:str, useCache=False, saveCache=True) -> VData:
 		if not useCache or vid not in self.cache['me/videos']:

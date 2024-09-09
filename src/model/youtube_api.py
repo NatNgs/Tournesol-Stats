@@ -206,8 +206,14 @@ class Video(dict):
 	def __getitem__(self, key):
 		return self.raw.get(key)
 
-	def get(self, key, default=None):
-		return self.raw.get(key, default)
+	def get(self, default=None, *keys):
+		d = self.raw
+		for k in keys:
+			if k in d:
+				d = d[k]
+			else:
+				return default
+		return d
 
 	def short_str(self):
 		if 'title' in self.raw:
