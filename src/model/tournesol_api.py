@@ -43,13 +43,16 @@ class TournesolAPI:
 			with gzip.open(self.file, 'wt', encoding='UTF-8') as file:
 				json.dump(self.cache, file)
 
+	def _wait(self):
+		wait=self.delay-(time.time()-self.last_api_call)
+		if wait > 0:
+			time.sleep(wait)
+
 	def callTournesol(self, path: str):
 		if path[0] == '/': # Cut leading slash in path
 			path = path[1:]
 
-		wait=self.delay-(time.time()-self.last_api_call)
-		if wait > 0:
-			time.sleep(wait)
+		self._wait()
 		response = requests.get(self.base_url + path, headers={'Authorization': self.jwt} if self.jwt else None)
 		self.last_api_call = time.time()
 		response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
@@ -84,6 +87,25 @@ class TournesolAPI:
 
 		return allRes
 
+	def post(self, path: str, body:dict[str,any]):
+		if path[0] == '/': # Cut leading slash in path
+			path = path[1:]
+
+		self._wait()
+		response = requests.post(self.base_url + path, json=body, headers={'Authorization': self.jwt} if self.jwt else None)
+		self.last_api_call = time.time()
+		response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
+		return response.json()
+
+	def put(self, path: str, body:dict[str,any]):
+		if path[0] == '/': # Cut leading slash in path
+			path = path[1:]
+
+		self._wait()
+		response = requests.put(self.base_url + path, json=body, headers={'Authorization': self.jwt} if self.jwt else None)
+		self.last_api_call = time.time()
+		response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
+		return response.json()
 
 	def getAllVideos(self, useCache=True, saveCache=True) -> list[VData]:
 		now_w = datetime.datetime.now(tz=datetime.timezone.utc).isocalendar() # (year, week_num (1-52), week_day (Mon=1, Sun=7))

@@ -11,6 +11,7 @@ import googleapiclient.discovery
 
 API_KEY_LOCATION = os.path.expanduser('~/Documents/YT_API_KEY.txt')
 MAX_FETCH_SIZE = 50
+YT_API_DELAY = 0.5 # seconds between 2 calls to youtube API
 
 def _get_yt_key():
 	file = open(API_KEY_LOCATION, 'r', encoding='utf-8')
@@ -100,17 +101,17 @@ def _vdata_from_ytdata(data, cache:dict[str,Video]=None):
 
 LAST_YT_CALL=datetime.datetime.now(datetime.timezone.utc)
 def _fetch_video_data(videosToFetch: list[str], cache:dict[str,Video]|None):
-	global LAST_YT_CALL
 	#
 	# Requesting missing data
 	#
+	global LAST_YT_CALL
 	youtube = _get_connection()
 	newvideos = {}
 
 	try:
 		toFetch = len(videosToFetch)
 		for i in range(0, toFetch, MAX_FETCH_SIZE):
-			wait=(1.5)-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
+			wait=YT_API_DELAY-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
 			if wait > 0:
 				time.sleep(wait)
 			request: googleapiclient.http.HttpRequest = youtube.videos().list(
@@ -150,7 +151,7 @@ def _fetch_channel_data(channelsToFetch: list[str]):
 				id= ','.join(channelsToFetch[i:i+MAX_FETCH_SIZE]) # cid to get
 			)
 			data.extend(request.execute()['items'])
-			time.sleep(0.5) # Anti-spam
+			time.sleep(YT_API_DELAY) # Anti-spam
 	except Exception as e:
 		print('Fetch failed.')
 		raise e
@@ -193,6 +194,76 @@ def _fetch_channel_data(channelsToFetch: list[str]):
 			}
 
 	return newchannels
+
+def _fetch_channel_videos(channelToFetch: str, cache:dict[str,Video]=None):
+	global LAST_YT_CALL
+	youtube = _get_connection()
+	vidlist = set()
+
+	try:
+		# Fetch videos playlist
+		request: googleapiclient.http.HttpRequest = youtube.channels().list(
+			forHandle=channelToFetch,
+			part='contentDetails',
+		)
+		print('Querying videos playlist of', channelToFetch, '...')
+		wait=YT_API_DELAY-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
+		if wait > 0:
+			time.sleep(wait)
+		response = request.execute()
+		LAST_YT_CALL=datetime.datetime.now(datetime.timezone.utc)
+		channelInfo = (response['items'] if 'items' in response else [{}])[0]
+		'''
+		{
+			'kind': 'youtube#channel',
+			'etag': 'rzgWKwSxZEdZvlCOECf6uGiqXYA',
+			'id': 'UC9-y-6csu5WGm29I7JiwpnA',
+			'contentDetails': {
+				'relatedPlaylists': {
+					'likes': '',
+					'uploads': 'UU9-y-6csu5WGm29I7JiwpnA'
+				}
+			}
+		}
+		'''
+		uploadsListId = channelInfo.get('contentDetails', {}).get('relatedPlaylists', {}).get('uploads', None)
+		if not uploadsListId:
+			print('No video found for handle:', channelToFetch)
+			return {}
+
+		# Fetch videos from playlist
+		print('Querying videos from playlist', uploadsListId, '...', end=' ')
+		doContinue = True
+		nextPage=None
+		while doContinue:
+			request: googleapiclient.http.HttpRequest = youtube.playlistItems().list(
+				playlistId=uploadsListId,
+				part='snippet', # Information to get
+				maxResults=MAX_FETCH_SIZE,
+				pageToken=nextPage,
+			)
+
+			wait=YT_API_DELAY-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
+			if wait > 0:
+				time.sleep(wait)
+			response = request.execute()
+			LAST_YT_CALL=datetime.datetime.now(datetime.timezone.utc)
+
+			vidlist.update([v['snippet']['resourceId']['videoId'] for v in response['items']])
+			nextPage=response.get('nextPageToken', None)
+			print(len(vidlist), end=' ')
+			if not nextPage:
+				doContinue = False
+		print('.')
+
+	except Exception as e:
+		print('Fetch failed.')
+		raise e
+
+	if vidlist:
+		return list(vidlist)
+	return {}
+
 
 class Video(dict):
 	def __init__(self, json: dict[str, any]):
