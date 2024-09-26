@@ -113,7 +113,7 @@ def do_analyse_tags(vids: set[str], ytdata: YTData, tds: str):
 # Unload parameters
 parser = argparse.ArgumentParser()
 parser.add_argument('-t', '--tournesoldataset', help='Directory where the public dataset is located', default='data/tournesol_dataset', type=str)
-parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json', type=str)
+parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json.gz', type=str)
 parser.add_argument('--fetch', help='If --fetch, will fetch youtube API for updating data', action=argparse.BooleanOptionalAction, default=False)
 
 args = vars(parser.parse_args())

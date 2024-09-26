@@ -1,9 +1,8 @@
-import gzip
-import json
 import time
 import datetime
 import requests
 from typing import Callable
+from utils.save import load_json_gz, save_json_gz
 
 # Type
 VData=dict[str,any]
@@ -20,7 +19,6 @@ class TournesolAPI:
 		self.base_url='https://api.tournesol.app/'
 		self.delay=1.0 # Seconds between call to API
 
-		# Load cache
 		self.cache:dict[str,dict[str,any]] = {
 			'all/videos_cached': "2000-12-31T23:59:59", # When was all/videos refreshed for the last time ?
 			'all/videos': {}, # "vid": {vdata}
@@ -30,18 +28,16 @@ class TournesolAPI:
 		}
 		if cache_file:
 			try:
-				with gzip.open(self.file, 'rt', encoding='UTF-8') as file:
-					loaded = json.load(file)
-					for k in self.cache:
-						if k in loaded:
-							self.cache[k] = loaded[k]
+				loaded = load_json_gz(self.cache)
+				for k in self.cache:
+					if k in loaded:
+						self.cache[k] = loaded[k]
 			except:
 				print('Failed to load file', self.file)
 
 	def saveCache(self):
 		if self.file:
-			with gzip.open(self.file, 'wt', encoding='UTF-8') as file:
-				json.dump(self.cache, file)
+			save_json_gz(self.file, self.cache)
 
 	def _wait(self):
 		wait=self.delay-(time.time()-self.last_api_call)

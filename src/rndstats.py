@@ -124,7 +124,7 @@ def print_creators_stats(cmpFile: ComparisonFile, YTDATA: YTData, fetchunknown: 
 	cmpFile.foreach(_video_lister)
 
 	if fetchunknown:
-		YTDATA.update(vids, save='data/YTData_cache.json', cachedDays=122, max_update=MAX_UPDATE)
+		YTDATA.update(vids, save='data/YTData_cache.json.gz', cachedDays=122, max_update=MAX_UPDATE)
 
 	unknownvid = set()
 	def _line_parser(line: ComparisonLine):
@@ -175,7 +175,7 @@ def print_user_specific_stats(cmpFile: ComparisonFile, YTDATA: YTData, user: str
 	cmpFile.foreach(line_parser)
 
 	if fetchunknown:
-		YTDATA.update(criteria_values.keys(), save='data/YTData_cache.json', cachedDays=122, max_update=MAX_UPDATE)
+		YTDATA.update(criteria_values.keys(), save='data/YTData_cache.json.gz', cachedDays=122, max_update=MAX_UPDATE)
 
 	print
 	print(f'##### {user} stats #####')
@@ -204,7 +204,7 @@ def print_user_specific_stats(cmpFile: ComparisonFile, YTDATA: YTData, user: str
 # Unload parameters
 parser = argparse.ArgumentParser()
 parser.add_argument('-t', '--tournesoldataset', help='Directory where the public dataset is located', default='data/tournesol_dataset', type=str)
-parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json', type=str)
+parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json.gz', type=str)
 parser.add_argument('-u', '--user', help='Get statistics for given user. If unset, will compute global statistics', type=str, default=None)
 parser.add_argument('--fetch', help='If set, will fetch youtube API for updating data', action=argparse.BooleanOptionalAction, default=False)
 

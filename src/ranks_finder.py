@@ -129,7 +129,7 @@ if __name__ == '__main__':
 	# Unload parameters
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-t', '--tournesoldataset', help='Directory where the public dataset is located', default='data/tournesol_dataset', type=str)
-	parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json', type=str)
+	parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json.gz', type=str)
 	parser.add_argument('-u', '--user', help='Get statistics for given user only. If unset, will compute global statistics', type=str, default=None)
 
 	args = vars(parser.parse_args())

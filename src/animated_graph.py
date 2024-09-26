@@ -13,7 +13,7 @@ from datetime import datetime
 
 
 # Constants
-YTDATA_CACHE_PATH='data/YTData_cache.json'
+YTDATA_CACHE_PATH='data/YTData_cache.json.gz'
 TOURNESOL_DATASET_PATH_1='data/tournesol_dataset_2023-06-05'
 TOURNESOL_DATASET_PATH_2='data/tournesol_dataset_2023-06-12'
 VIDEO_DIR = 'output/video/imgs'

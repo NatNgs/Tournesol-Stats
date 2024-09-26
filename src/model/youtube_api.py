@@ -1,6 +1,5 @@
 from __future__ import annotations
 import os
-import json
 import math
 import time
 import pandas as pd
@@ -8,6 +7,7 @@ import datetime
 import requests
 import googleapiclient.http
 import googleapiclient.discovery
+from utils.save import load_json_gz, save_json_gz
 
 API_KEY_LOCATION = os.path.expanduser('~/Documents/YT_API_KEY.txt')
 MAX_FETCH_SIZE = 50
@@ -328,18 +328,18 @@ class YTData:
 	def load(self, filename: str):
 		vcnt = 0
 		ccnt = 0
-		with open(filename, 'r', encoding='UTF-8') as file:
-			data = json.load(file)
-			for v in data['VIDEOS']:
-				if not v in self.videos or self.videos[v]['updated'] < data['VIDEOS'][v]['updated']:
-					self.videos[v] = Video(data['VIDEOS'][v])
-					vcnt += 1
-			for c in data['CHANNELS']:
-				if not c in self.channels or self.channels[c]['updated'] < data['CHANNELS'][c]['updated']:
-					self.channels[c] = Channel(data['CHANNELS'][c])
-					ccnt += 1
-			print(f'YTData loaded from file {os.path.realpath(file.name)}')
-			print(f'Loaded {vcnt} videos & {ccnt} channels.')
+
+		unloaded_data = load_json_gz(filename)
+
+		for v in unloaded_data['VIDEOS']:
+			if not v in self.videos or self.videos[v]['updated'] < unloaded_data['VIDEOS'][v]['updated']:
+				self.videos[v] = Video(unloaded_data['VIDEOS'][v])
+				vcnt += 1
+		for c in unloaded_data['CHANNELS']:
+			if not c in self.channels or self.channels[c]['updated'] < unloaded_data['CHANNELS'][c]['updated']:
+				self.channels[c] = Channel(unloaded_data['CHANNELS'][c])
+				ccnt += 1
+		print(f'Loaded {vcnt} videos & {ccnt} channels from {filename}')
 		self._update_vid_channel_links()
 
 	def save(self, filename: str, print_log:bool = True):
@@ -347,16 +347,10 @@ class YTData:
 			'VIDEOS': {k:self.videos[k].raw for k in self.videos},
 			'CHANNELS': {k:self.channels[k].raw for k in self.channels}
 		}
-		with open(filename, 'w', encoding='UTF-8') as file:
-			json.dump(
-				json_data,
-				file,
-				indent=2,
-				sort_keys=True,
-				ensure_ascii=False
-			)
-			if print_log:
-				print(f'YTData saved to file {os.path.realpath(file.name)}', flush=True)
+
+		savedfile = save_json_gz(filename, json_data)
+		if print_log:
+			print(f'YTData saved to file {savedfile}', flush=True)
 
 	def update(self, vids=[], cachedDays=365, max_update=0, force=False, save=None):
 		updateDate = (datetime.datetime.utcnow() + datetime.timedelta(days=-cachedDays)).isoformat() + 'Z'
@@ -424,10 +418,9 @@ class YTData:
 
 	def load_ytHistory(self, history_file: str, removeOthers=False):
 		# Add seen videos from yt history
-		with open(history_file, 'r') as file:
-			data: list[dict] = json.load(file)
-			# Extract vid from videos urls
-			vids = [d['titleUrl'].split('\u003d',2)[1] for d in data if 'titleUrl' in d]
+		data:list[dict] = load_json_gz(history_file)
+		# Extract vid from videos urls
+		vids = [d['titleUrl'].split('\u003d',2)[1] for d in data if 'titleUrl' in d]
 
 		self.update(vids)
 

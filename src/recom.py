@@ -49,10 +49,10 @@ def recom(user: str, cmp_file: ComparisonFile, langs: set[str]):
 
 	YTDATA = YTData()
 	try:
-		YTDATA.load('data/YTData_cache.json')
+		YTDATA.load('data/YTData_cache.json.gz')
 	except FileNotFoundError:
 		pass
-	YTDATA.update(users_vids | vid_to_recommend, save='data/YTData_cache.json')
+	YTDATA.update(users_vids | vid_to_recommend, save='data/YTData_cache.json.gz')
 
 	# Exclude videos not in VIDEOS list
 	vids = set(YTDATA.videos.keys())

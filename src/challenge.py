@@ -171,7 +171,7 @@ def positiveInt(val):
 # Unload parameters
 parser = argparse.ArgumentParser()
 parser.add_argument('-t', '--tournesoldataset', help='Directory where the public dataset is located', default='data/tournesol_dataset', type=str)
-parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json', type=str)
+parser.add_argument('-c', '--cache', help='Youtube data cache file location', default='data/YTData_cache.json.gz', type=str)
 parser.add_argument('-l', '--lng', help='Video languages to keep. All languages enabled if unset. Use letters langage code ex: "en", "fr", "sp". Use "??" for videos of unknown language. Allow coma separated values to allow multiple like "fr,en,??"', default='', type=str)
 parser.add_argument('-u', '--user', help='Get statistics for given user. If unset, will compute global statistics', type=str, default=None)
 parser.add_argument('-n', '--nb', help='Number of how much suggestions to show (default: 10)', type=positiveInt, default=10)
