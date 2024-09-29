@@ -27,12 +27,12 @@ jobs:
       run: pip install jupyter-book
 
     - name: Build
-      run: jupyter-book build src/notebooks/
+      run: jupyter-book build src/notebooks/viz
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v2
       with:
-        path: "build/html"
+        path: "build/html/viz"
 
     - name: Deploy to GitHub Pages
       id: deployment

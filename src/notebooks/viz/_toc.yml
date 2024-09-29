@@ -4,5 +4,5 @@ title: TournesolViz
 parts:
 - caption: TournesolViz
   chapters:
-  - file: VizCommunity
-  - file: VizUser
+  - file: viz/VizCommunity
+  - file: viz/VizUser
