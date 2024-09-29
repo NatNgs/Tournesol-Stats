@@ -27,7 +27,7 @@ jobs:
       run: pip install jupyter-book
 
     - name: Build
-      run: jupyter-book build src/notebooks/Viz*.ipynb
+      run: jupyter-book build src/notebooks/
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v2
