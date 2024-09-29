@@ -81,13 +81,20 @@ class TournesolAPIDelay:
 
 
 class TournesolAPI:
-	def __init__(self, jwt:str=None, cache_file:str=None):
-		self.file = cache_file
-		self.jwt = jwt
+	def __init__(self, jwt:str=None):
 		self.last_api_call=time.time()
 		self.base_url='https://api.tournesol.app/'
 		self.delay=1.0 # Seconds between call to API
 
+		self.username = None
+		self.jwt = jwt
+		if jwt: # Authenticate
+			userdetails = self.callTournesol('accounts/profile')
+			assert userdetails
+			assert 'username' in userdetails and userdetails['username']
+			self.username = userdetails['username']
+
+		self.file = None
 		self.cache:dict[str,dict[str,any]] = {
 			'all/videos_cached': "2000-12-31T23:59:59", # When was all/videos refreshed for the last time ?
 			'all/videos': {}, # "vid": {vdata}
@@ -95,19 +102,17 @@ class TournesolAPI:
 			'me/comparisons': {}, # "entity_a\tentity_b": {<cdata>}
 			'me/videos': {}, # "vid": {vdata} # TODO: Remove "entity":{...} and use it from 'all/videos'
 		}
-		if cache_file:
-			try:
-				loaded = load_json_gz(cache_file)
-				for k in self.cache:
-					if k in loaded:
-						self.cache[k] = loaded[k]
-			except FileNotFoundError:
-				print('File', cache_file, 'not found')
 
+	def loadCache(self, cache_file:str):
+		loaded = load_json_gz(cache_file)
+		for k in self.cache:
+			if k in loaded:
+				self.cache[k] = loaded[k]
+		self.file = cache_file
 
 	def saveCache(self):
-		if self.file:
-			save_json_gz(self.file, self.cache)
+		assert self.file
+		save_json_gz(self.file, self.cache)
 
 	def callTournesol(self, path: str):
 		if path[0] == '/': # Cut leading slash in path
