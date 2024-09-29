@@ -11,7 +11,9 @@ def load_json_gz(filename:str) -> any:
 				if f.endswith('.gz')
 				else open(f, 'r', encoding='UTF-8')
 		) as file:
-			return json.load(file)
+			loaded = json.load(file)
+			print('Loaded file', os.path.realpath(file.name))
+			return loaded
 
 	# Open the given file if exists
 	if Path(filename).is_file():
@@ -37,5 +39,4 @@ def save_json_gz(filename:str, data:any) -> str:
 				separators=(',',':'),
 				ensure_ascii=True
 			)
-			return os.path.realpath(file.name)
-	return None
+			# print('Saved file', os.path.realpath(file.name))

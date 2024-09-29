@@ -339,7 +339,7 @@ class YTData:
 			if not c in self.channels or self.channels[c]['updated'] < unloaded_data['CHANNELS'][c]['updated']:
 				self.channels[c] = Channel(unloaded_data['CHANNELS'][c])
 				ccnt += 1
-		print(f'Loaded {vcnt} videos & {ccnt} channels from {filename}')
+		print(f'Loaded {vcnt} videos & {ccnt} channels from cache')
 		self._update_vid_channel_links()
 
 	def save(self, filename: str, print_log:bool = True):

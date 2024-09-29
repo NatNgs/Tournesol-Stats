@@ -1,3 +1,4 @@
+from __future__ import annotations
 import time
 import datetime
 import requests
@@ -5,11 +6,79 @@ from typing import Callable
 from utils.save import load_json_gz, save_json_gz
 
 # Type
+'''	VData:
+		entity: {
+			uid: "yt:kl-XuekJxR4"
+			type:"video"
+			metadata: {
+				name: "Why Continents Are High"
+				uploader: "MinuteEarth"
+				tags:["tag1", "tag2", ...]
+				views: int
+				source: "youtube"
+				duration: int (seconds)
+				language: "en"
+				video_id: "kl-XuekJxR4"
+				chennel_id: "Uabcdefghijklmnopqrstuvw"
+				description: "Youtube video description"
+				is_unlisted: true/false
+				publication_date: "2022-12-31T23:59:59Z"
+			}
+		},
+		collective_rating: {
+			tournesol_score: 12.12345678901234 (-100 to +100)
+			n_comparisons: int
+			n_contributors: int
+			unsafe: {
+				status: true/false
+				reasons: [str]
+			}
+		},
+		criteria_scores: [{
+			criteria: "backfire_risk"/"better_habits"/"diversity_inclusion"/"largely_recommended"/...
+			score: 12.12345678901234 (-100 to +100)
+		}],
+		recommendation_metadata: {
+			total_score: #unknown#
+		}
+'''
 VData=dict[str,any]
+
+''' CData:
+	{
+		entity_a: "yt:kl-XuekJxR4"
+		entity_b: "yt:abcdefghijk"
+		cached: "2024-12-31T23:59:59Z" (timestamp)
+		criteria_scores: [{
+			criteria: "largely_recommended"/...
+			score: 2 (-10 to +10)
+			score_max: 10
+			weight: 1.0
+		}]
+	}
+'''
 CData=dict[str,any]
 
 def timestamp():
 	return datetime.datetime.now(tz=datetime.timezone.utc).isoformat(timespec='seconds')
+
+class TournesolAPIDelay:
+	"""
+	Usage:
+		with TournesolAPIDelay(tournesolapi):
+			# call to Tournesol API
+	"""
+	def __init__(self, tournesolapi:TournesolAPI):
+		self.tournesolapi = tournesolapi
+
+	def __enter__(self):
+		wait=self.tournesolapi.delay-(time.time()-self.tournesolapi.last_api_call)
+		if wait > 0:
+			time.sleep(wait)
+
+	def __exit__(self, type, value, traceback):
+		self.tournesolapi.last_api_call = time.time()
+
 
 class TournesolAPI:
 	def __init__(self, jwt:str=None, cache_file:str=None):
@@ -28,31 +97,26 @@ class TournesolAPI:
 		}
 		if cache_file:
 			try:
-				loaded = load_json_gz(self.cache)
+				loaded = load_json_gz(cache_file)
 				for k in self.cache:
 					if k in loaded:
 						self.cache[k] = loaded[k]
-			except:
-				print('Failed to load file', self.file)
+			except FileNotFoundError:
+				print('File', cache_file, 'not found')
+
 
 	def saveCache(self):
 		if self.file:
 			save_json_gz(self.file, self.cache)
 
-	def _wait(self):
-		wait=self.delay-(time.time()-self.last_api_call)
-		if wait > 0:
-			time.sleep(wait)
-
 	def callTournesol(self, path: str):
 		if path[0] == '/': # Cut leading slash in path
 			path = path[1:]
 
-		self._wait()
-		response = requests.get(self.base_url + path, headers={'Authorization': self.jwt} if self.jwt else None)
-		self.last_api_call = time.time()
-		response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
-		return response.json()
+		with TournesolAPIDelay(self):
+			response = requests.get(self.base_url + path, headers={'Authorization': self.jwt} if self.jwt else None)
+			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
+			return response.json()
 
 	def callTournesolMulti(self, path: str, args:str=None, start:int=0, end:int=0, fn_continue:Callable[[list[VData]], bool]=None) -> list[VData]:
 		LIMIT=1000
@@ -87,21 +151,20 @@ class TournesolAPI:
 		if path[0] == '/': # Cut leading slash in path
 			path = path[1:]
 
-		self._wait()
-		response = requests.post(self.base_url + path, json=body, headers={'Authorization': self.jwt} if self.jwt else None)
-		self.last_api_call = time.time()
-		response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
-		return response.json()
+		with TournesolAPIDelay(self):
+			response = requests.post(self.base_url + path, json=body, headers={'Authorization': self.jwt} if self.jwt else None)
+			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
+			return response.json()
 
 	def put(self, path: str, body:dict[str,any]):
 		if path[0] == '/': # Cut leading slash in path
 			path = path[1:]
 
-		self._wait()
-		response = requests.put(self.base_url + path, json=body, headers={'Authorization': self.jwt} if self.jwt else None)
-		self.last_api_call = time.time()
-		response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
-		return response.json()
+		with TournesolAPIDelay(self):
+			response = requests.put(self.base_url + path, json=body, headers={'Authorization': self.jwt} if self.jwt else None)
+			self.last_api_call = time.time()
+			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
+			return response.json()
 
 	def getAllVideos(self, useCache=True, saveCache=True) -> list[VData]:
 		now_w = datetime.datetime.now(tz=datetime.timezone.utc).isocalendar() # (year, week_num (1-52), week_day (Mon=1, Sun=7))
