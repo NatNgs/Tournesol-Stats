@@ -15,7 +15,7 @@ jobs:
       pages: write
       id-token: write
     steps:
-    - name: Checkout 
+    - name: Checkout
       uses: actions/checkout@v3
 
     - name: Set up Python 3.9
@@ -25,9 +25,6 @@ jobs:
 
     - name: Set up jupyter-book
       run: pip install jupyter-book
-
-    - name: Table of contents
-      run: jupyter-book toc from-project src/notebooks/
 
     - name: Build
       run: jupyter-book build src/notebooks/
