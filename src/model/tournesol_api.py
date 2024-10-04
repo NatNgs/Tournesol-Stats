@@ -123,7 +123,7 @@ class TournesolAPI:
 			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
 			return response.json()
 
-	def callTournesolMulti(self, path: str, args:str=None, start:int=0, end:int=0, fn_continue:Callable[[list[VData]], bool]=None) -> list[VData]:
+	def callTournesolMulti(self, path: str, args:str=None, start:int=0, end:int=0, fn_continue:Callable[[list[any]], bool]=None) -> list[any]:
 		LIMIT=1000
 		URL=f'{path}?limit={LIMIT}' + (('&' + args) if args else '')
 		offset=start
@@ -241,35 +241,44 @@ class TournesolAPI:
 		if saveCache: self.saveCache()
 		return allRes
 
-	def getAllMyComparisons(self, useCache=False, saveCache=True) -> list[CData]:
-		if not useCache:
-			allRes = self.callTournesolMulti('users/me/comparisons/videos')
-			# {
-			#	entity_a: {uid:"yt:xxxxxx", ...},
-			#	entity_b: {uid:"yt:xxxxxx", ...},
-			#	criteria_scores: [{criteria: "largely_recommended", score: 10, score_max: 10, weight: 1}],
-			#	...
-			# }
+	def getAllMyComparisons(self, useCache=True, saveCache=True) -> list[CData]:
+		def fn_continue(nextRes:list[CData]):
+			# Check if at least one comparison is not yet cached
+			for cdata in nextRes:
+				cid = '\t'.join(sorted([cdata['entity_a']['uid'], cdata['entity_b']['uid']]))
+				if not cid in self.cache['me/comparisons']:
+					return True
+			return False
 
-			for cdata in allRes:
-				cdata['entity_a'] = cdata['entity_a']['uid']
-				cdata['entity_b'] = cdata['entity_b']['uid']
-				cdata['cached'] = timestamp()
-				cid = '\t'.join(sorted([cdata['entity_a'], cdata['entity_b']]))
-				self.cache['me/comparisons'][cid] = cdata
-				self.getVData(cdata['entity_a'], useCache=True, saveCache=False)
-				self.getVData(cdata['entity_b'], useCache=True, saveCache=False)
+		allRes:list[CData] = self.callTournesolMulti('users/me/comparisons/videos', fn_continue=fn_continue if useCache else None)
+		# {
+		#	entity_a: {uid:"yt:xxxxxx", ...},
+		#	entity_b: {uid:"yt:xxxxxx", ...},
+		#	criteria_scores: [{criteria: "largely_recommended", score: 10, score_max: 10, weight: 1}],
+		#	...
+		# }
 
-			if saveCache: self.saveCache()
+		for cdata in allRes:
+			cdata['entity_a'] = cdata['entity_a']['uid']
+			cdata['entity_b'] = cdata['entity_b']['uid']
+			cdata['cached'] = timestamp()
+			cid = '\t'.join(sorted([cdata['entity_a'], cdata['entity_b']]))
+			self.cache['me/comparisons'][cid] = cdata
+			vdata1 = self.getVData(cdata['entity_a'], useCache=True, saveCache=False)
+			vdata2 = self.getVData(cdata['entity_b'], useCache=True, saveCache=False)
+			cdata['is_public'] = get(vdata1, False, 'individual_rating', 'is_public') and get(vdata2, False, 'individual_rating', 'is_public')
+
+		if saveCache: self.saveCache()
 
 		# {
 		#	entity_a: "yt:xxxxx",
 		#	entity_b: "yt:xxxxx",
 		#	cached: "2024-12-31T23:59:59Z",
 		#	criteria_scores: [...],
+		#	is_public: false,
 		#	...
 		# }
-		return self.cache['me/comparisons'].values()
+		return list(self.cache['me/comparisons'].values())
 
 	def getMyComparisonsWith(self, vid, saveCache=False) -> list[CData]:
 		allRes = self.callTournesolMulti(f"users/me/comparisons/videos/{vid}/")
