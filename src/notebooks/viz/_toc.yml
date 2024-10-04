@@ -1,8 +1,0 @@
-format: jb-book
-root: .
-title: TournesolViz
-parts:
-- caption: TournesolViz
-  chapters:
-  - file: viz/VizCommunity
-  - file: viz/VizUser

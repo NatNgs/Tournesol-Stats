@@ -133,6 +133,7 @@ def _fetch_video_data(videosToFetch: list[str], cache:dict[str,Video]|None):
 				'vid': vid,
 				'updated': nowDate
 			}
+
 	return newvideos
 
 
@@ -358,6 +359,8 @@ class YTData:
 		# Find videos to update
 		vidsToUpdate: set[str] = set()
 		for v in vids:
+			if v[:3] == 'yt:':
+				v = v[3:]
 			if force or (not v in self.videos):
 				vidsToUpdate.add(v)
 

@@ -161,6 +161,15 @@ class TournesolAPI:
 			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
 			return response.json()
 
+	def patch(self, path: str, body:dict[str,any]):
+		if path[0] == '/': # Cut leading slash in path
+			path = path[1:]
+
+		with TournesolAPIDelay(self):
+			response = requests.patch(self.base_url + path, json=body, headers={'Authorization': self.jwt} if self.jwt else None)
+			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
+			return response.json()
+
 	def put(self, path: str, body:dict[str,any]):
 		if path[0] == '/': # Cut leading slash in path
 			path = path[1:]
@@ -180,24 +189,23 @@ class TournesolAPI:
 			or (now_w.year == cached_w.year and (now_w.week > cached_w.week or (
 					now_w.week == cached_w.week and now_w.weekday < cached_w.weekday)))):
 			# TODO: Only call refresh on recent videos (depending on all/videos_cached date)
-			def onprogress(res:list[VData]) -> bool:
-				if saveCache:
-					for vdata in res:
-						vid = vdata['entity']['uid']
-						self.cache['all/videos'][vid] = vdata
-
-					self.saveCache()
-				return True
-
-			allRes = self.callTournesolMulti(f"polls/videos/recommendations/", "unsafe=false", fn_continue=onprogress) # TODO: unsafe=true
-			for vdata in allRes:
-				vid = vdata['entity']['uid']
-				self.cache['all/videos'][vid] = vdata
-
+			self.getVideos(saveCache=True, params={'unsafe': 'true'})
 			if saveCache:
 				self.cache['all/videos_cached'] = timestamp()
 				self.saveCache()
 		return list(self.cache['all/videos'].values())
+
+	def getVideos(self, saveCache=True, *, params:dict[str,str]):
+		def onprogress(res:list[VData]) -> bool:
+			for vdata in res:
+				vid = vdata['entity']['uid']
+				self.cache['all/videos'][vid] = vdata
+			self.saveCache()
+			return True
+
+		allRes = self.callTournesolMulti(f"polls/videos/recommendations/", "&".join([f"{k}={v}" for k,v in params.items()]), fn_continue=onprogress if saveCache else None)
+		return {vdata['entity']['uid']:vdata for vdata in allRes}
+
 
 	def getVData(self, vid:str, useCache=False, saveCache=True) -> VData:
 		if not useCache or vid not in self.cache['me/videos']:
