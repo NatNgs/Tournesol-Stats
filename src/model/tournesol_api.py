@@ -225,7 +225,7 @@ class TournesolAPI:
 		if saveCache: self.saveCache()
 		return allRes
 
-	def getMyComparedVideos(self, useCache=False, saveCache=True) -> list[VData]:
+	def getMyComparedVideos(self, useCache=True, saveCache=True) -> list[VData]:
 		# only call tournesol for last comparisons (until "last_compared_at" is older than cache date)
 		def check_need_update(res):
 			last = res[-1]['entity']['uid']
