@@ -198,20 +198,17 @@ def _fetch_channel_data(channelsToFetch: list[str]):
 	return newchannels
 
 def fetch_channel_videos(channelToFetch: str, cache:dict[str,Video]=None) -> list[str]:
-	vidlist = set()
+	vidlist = []
 
 	gen = get_channel_videos(channelToFetch, cache)
 
-	print('[YTAPI] Obtaining video from channel', channelToFetch, '...', end=' ')
-	for batch in gen:
+	for vid in gen:
 		# Fetch videos from playlist
-		vidlist.update(batch)
-		print(len(vidlist), end=' ')
-	print('.')
+		vidlist.append(vid)
 
 	return list(vidlist)
 
-def get_channel_videos(channelToFetch: str, cache:dict[str,Video]=None) -> Generator[list[str],None,None]:
+def get_channel_videos(channelToFetch: str, cache:dict[str,Video]=None) -> Generator[str,None,None]:
 	global LAST_YT_CALL
 	youtube = _get_connection()
 
@@ -221,7 +218,7 @@ def get_channel_videos(channelToFetch: str, cache:dict[str,Video]=None) -> Gener
 			forHandle=channelToFetch,
 			part='contentDetails',
 		)
-		print('[YTAPI] Querying video playlist of channel', channelToFetch, '...')
+		print(f"[YTAPI] GET video playlist of @{channelToFetch}...")
 		wait=YT_API_DELAY-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
 		if wait > 0:
 			time.sleep(wait)
@@ -243,12 +240,13 @@ def get_channel_videos(channelToFetch: str, cache:dict[str,Video]=None) -> Gener
 		'''
 		uploadsListId = channelInfo.get('contentDetails', {}).get('relatedPlaylists', {}).get('uploads', None)
 		if not uploadsListId:
-			print('[YTAPI] No video found for handle:', channelToFetch)
+			print(f"[YTAPI] No video found for handle @{channelToFetch}")
 			return
 
 		# Fetch videos from playlist
 		doContinue = True
 		nextPage=None
+		page=1
 		while doContinue:
 			request: googleapiclient.http.HttpRequest = youtube.playlistItems().list(
 				playlistId=uploadsListId,
@@ -260,14 +258,19 @@ def get_channel_videos(channelToFetch: str, cache:dict[str,Video]=None) -> Gener
 			wait=YT_API_DELAY-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
 			if wait > 0:
 				time.sleep(wait)
+
+			print(f"[YTAPI] GET videos from @{channelToFetch} page {page}...")
 			response = request.execute()
 			LAST_YT_CALL=datetime.datetime.now(datetime.timezone.utc)
 
-			newvidlist = [v['snippet']['resourceId']['videoId'] for v in response['items']]
-			yield newvidlist
+			for v in response['items']:
+				yield v['snippet']['resourceId']['videoId']
+
 			nextPage=response.get('nextPageToken', None)
 			if not nextPage:
 				doContinue = False
+			else:
+				page+=1
 
 	except Exception as e:
 		print('Fetch failed.')
