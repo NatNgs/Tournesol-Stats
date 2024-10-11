@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import math
 import time
+from typing import Generator, Sequence
 import pandas as pd
 import datetime
 import requests
@@ -11,7 +12,7 @@ from utils.save import load_json_gz, save_json_gz
 
 API_KEY_LOCATION = os.path.expanduser('~/Documents/YT_API_KEY.txt')
 MAX_FETCH_SIZE = 50
-YT_API_DELAY = 0.5 # seconds between 2 calls to youtube API
+YT_API_DELAY = 0.25 # seconds between 2 calls to youtube API
 
 def _get_yt_key():
 	file = open(API_KEY_LOCATION, 'r', encoding='utf-8')
@@ -196,10 +197,23 @@ def _fetch_channel_data(channelsToFetch: list[str]):
 
 	return newchannels
 
-def _fetch_channel_videos(channelToFetch: str, cache:dict[str,Video]=None):
+def fetch_channel_videos(channelToFetch: str, cache:dict[str,Video]=None) -> list[str]:
+	vidlist = set()
+
+	gen = get_channel_videos(channelToFetch, cache)
+
+	print('[YTAPI] Obtaining video from channel', channelToFetch, '...', end=' ')
+	for batch in gen:
+		# Fetch videos from playlist
+		vidlist.update(batch)
+		print(len(vidlist), end=' ')
+	print('.')
+
+	return list(vidlist)
+
+def get_channel_videos(channelToFetch: str, cache:dict[str,Video]=None) -> Generator[list[str],None,None]:
 	global LAST_YT_CALL
 	youtube = _get_connection()
-	vidlist = set()
 
 	try:
 		# Fetch videos playlist
@@ -207,7 +221,7 @@ def _fetch_channel_videos(channelToFetch: str, cache:dict[str,Video]=None):
 			forHandle=channelToFetch,
 			part='contentDetails',
 		)
-		print('Querying videos playlist of', channelToFetch, '...')
+		print('[YTAPI] Querying video playlist of channel', channelToFetch, '...')
 		wait=YT_API_DELAY-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
 		if wait > 0:
 			time.sleep(wait)
@@ -229,11 +243,10 @@ def _fetch_channel_videos(channelToFetch: str, cache:dict[str,Video]=None):
 		'''
 		uploadsListId = channelInfo.get('contentDetails', {}).get('relatedPlaylists', {}).get('uploads', None)
 		if not uploadsListId:
-			print('No video found for handle:', channelToFetch)
-			return {}
+			print('[YTAPI] No video found for handle:', channelToFetch)
+			return
 
 		# Fetch videos from playlist
-		print('Querying videos from playlist', uploadsListId, '...', end=' ')
 		doContinue = True
 		nextPage=None
 		while doContinue:
@@ -250,21 +263,17 @@ def _fetch_channel_videos(channelToFetch: str, cache:dict[str,Video]=None):
 			response = request.execute()
 			LAST_YT_CALL=datetime.datetime.now(datetime.timezone.utc)
 
-			vidlist.update([v['snippet']['resourceId']['videoId'] for v in response['items']])
+			newvidlist = [v['snippet']['resourceId']['videoId'] for v in response['items']]
+			yield newvidlist
 			nextPage=response.get('nextPageToken', None)
-			print(len(vidlist), end=' ')
 			if not nextPage:
 				doContinue = False
-		print('.')
 
 	except Exception as e:
 		print('Fetch failed.')
 		raise e
 
-	if vidlist:
-		return list(vidlist)
-	return {}
-
+	return
 
 class Video(dict):
 	def __init__(self, json: dict[str, any]):

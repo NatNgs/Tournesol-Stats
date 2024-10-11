@@ -90,7 +90,7 @@ class ForceLayout():
 
 	def update_graph(self,
 		pos:dict[str,tuple[float,float]]=None,
-		edge_lengths: str or Callable[[str, str, dict[str, any]], float or None]=None,
+		edge_lengths: str | Callable[[str, str, dict[str, any]], float | None]=None,
 	):
 		"""
 		Set or update graph, weights and positions of nodes. To be called after any change in the graph given in constructor
@@ -114,12 +114,15 @@ class ForceLayout():
 
 		for n in self.G.nodes:
 			new_nodes.append(n)
-			if n in self.nodes:
+			if n in pos:
+				new_x.append(pos[n])
+				new_dx.append([0,0])
+			elif n in self.nodes:
 				i = self.nodes.index(n)
 				new_x.append(self.x[i])
 				new_dx.append(self.dx[i])
 			else:
-				new_x.append(pos.get(n,np.random.rand(2)))
+				new_x.append(np.random.rand(2))
 				new_dx.append([0,0])
 
 		self.n = len(new_nodes)
@@ -196,7 +199,7 @@ class ForceLayout():
 
 				# Apply spring force
 				if nj in self.G[ni]:
-					desired_d = self.G.get_edge_data(ni, nj)['fdg_d']
+					desired_d = self.edges[j*self.n + i]
 					if not desired_d:
 						continue
 
