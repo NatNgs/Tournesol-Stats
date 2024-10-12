@@ -89,7 +89,7 @@ class TournesolAPI:
 		self.username = None
 		self.jwt = jwt
 		if jwt: # Authenticate
-			userdetails = self.callTournesol('accounts/profile')
+			userdetails = self.call_get('accounts/profile')
 			assert userdetails
 			assert 'username' in userdetails and userdetails['username']
 			self.username = userdetails['username']
@@ -114,14 +114,29 @@ class TournesolAPI:
 		assert self.file
 		save_json_gz(self.file, self.cache)
 
-	def callTournesol(self, path: str):
+	def _call(self, method:Callable[[str],any], path: str, body=None):
 		if path[0] == '/': # Cut leading slash in path
 			path = path[1:]
 
 		with TournesolAPIDelay(self):
-			response = requests.get(self.base_url + path, headers={'Authorization': self.jwt} if self.jwt else None)
+			response:requests.Response = method(self.base_url + path, headers={'Authorization': self.jwt} if self.jwt else None, json=body)
 			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
 			return response.json()
+
+	def call_get(self, path: str):
+		return self._call(requests.get, path)
+
+	def call_post(self, path: str, body:dict[str,any]):
+		return self._call(requests.post, path, body)
+
+	def call_patch(self, path: str, body:dict[str,any]):
+		return self._call(requests.patch, path, body)
+
+	def call_put(self, path: str, body:dict[str,any]):
+		return self._call(requests.put, path, body)
+
+	def call_delete(self, path: str, body:dict[str,any]=None):
+		self._call(requests.delete, path, body)
 
 	def callTournesolMulti(self, path: str, args:str=None, start:int=0, end:int=0, fn_continue:Callable[[list[any]], bool]=None) -> list[any]:
 		LIMIT=1000
@@ -129,7 +144,7 @@ class TournesolAPI:
 		offset=start
 
 		print(f"Calling TournesolAPI {path}...", end=' ')
-		rs = self.callTournesol(URL + f'&offset={offset}')
+		rs = self.call_get(URL + f'&offset={offset}')
 		if not 'count' in rs or not 'results' in rs:
 			print('##### ERROR #####')
 			raise Exception(URL, rs)
@@ -143,7 +158,7 @@ class TournesolAPI:
 			if (fn_continue is not None) and (not fn_continue(last_res)):
 				break
 			offset += LIMIT
-			rs = self.callTournesol(URL + f'&offset={offset}')
+			rs = self.call_get(URL + f'&offset={offset}')
 			total = rs['count']
 			last_res = rs['results']
 			allRes += last_res
@@ -151,34 +166,6 @@ class TournesolAPI:
 		print('.')
 
 		return allRes
-
-	def post(self, path: str, body:dict[str,any]):
-		if path[0] == '/': # Cut leading slash in path
-			path = path[1:]
-
-		with TournesolAPIDelay(self):
-			response = requests.post(self.base_url + path, json=body, headers={'Authorization': self.jwt} if self.jwt else None)
-			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
-			return response.json()
-
-	def patch(self, path: str, body:dict[str,any]):
-		if path[0] == '/': # Cut leading slash in path
-			path = path[1:]
-
-		with TournesolAPIDelay(self):
-			response = requests.patch(self.base_url + path, json=body, headers={'Authorization': self.jwt} if self.jwt else None)
-			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
-			return response.json()
-
-	def put(self, path: str, body:dict[str,any]):
-		if path[0] == '/': # Cut leading slash in path
-			path = path[1:]
-
-		with TournesolAPIDelay(self):
-			response = requests.put(self.base_url + path, json=body, headers={'Authorization': self.jwt} if self.jwt else None)
-			self.last_api_call = time.time()
-			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
-			return response.json()
 
 	def getAllVideos(self, useCache=True, saveCache=True) -> list[VData]:
 		now_w = datetime.datetime.now(tz=datetime.timezone.utc).isocalendar() # (year, week_num (1-52), week_day (Mon=1, Sun=7))
@@ -209,7 +196,7 @@ class TournesolAPI:
 
 	def getVData(self, vid:str, useCache=False, saveCache=True) -> VData:
 		if not useCache or vid not in self.cache['me/videos']:
-			self.cache['me/videos'][vid] = self.callTournesol(f"users/me/contributor_ratings/videos/{vid}/")
+			self.cache['me/videos'][vid] = self.call_get(f"users/me/contributor_ratings/videos/{vid}/")
 			# /polls/videos/entities/yt:CHoXZO7WFDA : same but does not contains individual_rating
 			self.cache['me/videos'][vid]['cached'] = timestamp()
 		if saveCache: self.saveCache()
