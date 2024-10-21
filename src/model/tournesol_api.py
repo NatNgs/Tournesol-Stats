@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import time
 import datetime
 import requests
@@ -21,7 +22,7 @@ from utils.save import load_json_gz, save_json_gz
 				video_id: "kl-XuekJxR4"
 				chennel_id: "Uabcdefghijklmnopqrstuvw"
 				description: "Youtube video description"
-				is_unlisted: true/false
+				is_unlisted: True/False
 				publication_date: "2022-12-31T23:59:59Z"
 			}
 		},
@@ -30,14 +31,19 @@ from utils.save import load_json_gz, save_json_gz
 			n_comparisons: int
 			n_contributors: int
 			unsafe: {
-				status: true/false
+				status: True/False
 				reasons: [str]
 			}
 		},
-		criteria_scores: [{
-			criteria: "backfire_risk"/"better_habits"/"diversity_inclusion"/"largely_recommended"/...
-			score: 12.12345678901234 (-100 to +100)
-		}],
+		'individual_rating': {
+			is_public: True/False,
+			n_comparisons: int,
+			last_compared_at: "2020-12-31T23:59:59.999999Z"
+			criteria_scores: [{
+				criteria: "backfire_risk"/"better_habits"/"diversity_inclusion"/"largely_recommended"/...
+				score: 12.12345678901234 (-100 to +100)
+			}],
+		}
 		recommendation_metadata: {
 			total_score: #unknown#
 		}
@@ -81,10 +87,11 @@ class TournesolAPIDelay:
 
 
 class TournesolAPI:
-	def __init__(self, jwt:str=None):
+	def __init__(self, jwt:str=None, proxy:str=None):
 		self.last_api_call=time.time()
 		self.base_url='https://api.tournesol.app/'
 		self.delay=1.0 # Seconds between call to API
+		self.proxy = proxy
 
 		self.username = None
 		self.jwt = jwt
@@ -119,8 +126,22 @@ class TournesolAPI:
 			path = path[1:]
 
 		with TournesolAPIDelay(self):
-			response:requests.Response = method(self.base_url + path, headers={'Authorization': self.jwt} if self.jwt else None, json=body)
+			proxies = {
+				'http': self.proxy,
+				'https': self.proxy,
+			} if self.proxy is not None else None
+			if proxies:
+				print('Proxy:', proxies)
+
+			response:requests.Response = method(self.base_url + path,
+				headers={'Authorization': self.jwt} if self.jwt else None,
+				json=body,
+				timeout=(5,10),
+				proxies=proxies,
+			)
 			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
+			if not response.content:
+				return None
 			return response.json()
 
 	def call_get(self, path: str):
@@ -154,15 +175,16 @@ class TournesolAPI:
 		allRes:list[VData] = last_res
 		print(f'{len(allRes)}/{total}', end=' ')
 
-		while len(allRes) < total and (end <= 0 or offset < end):
-			if (fn_continue is not None) and (not fn_continue(last_res)):
-				break
-			offset += LIMIT
-			rs = self.call_get(URL + f'&offset={offset}')
-			total = rs['count']
-			last_res = rs['results']
-			allRes += last_res
-			print(f'{len(allRes)}', end=' ')
+		if fn_continue is None or fn_continue(last_res):
+			while len(allRes) < total and (end <= 0 or offset < end):
+				offset += LIMIT
+				rs = self.call_get(URL + f'&offset={offset}')
+				total = rs['count']
+				last_res = rs['results']
+				allRes += last_res
+				print(f'{len(allRes)}', end=' ')
+				if (fn_continue is not None) and (not fn_continue(last_res)):
+					break
 		print('.')
 
 		return allRes
@@ -190,7 +212,10 @@ class TournesolAPI:
 			self.saveCache()
 			return True
 
-		allRes = self.callTournesolMulti(f"polls/videos/recommendations/", "&".join([f"{k}={v}" for k,v in params.items()]), fn_continue=onprogress if saveCache else None)
+		allRes = self.callTournesolMulti(
+			f"polls/videos/recommendations/", "&".join([f"{k}={v}" for k,v in params.items()]),
+			fn_continue=onprogress if saveCache else None
+		)
 		return {vdata['entity']['uid']:vdata for vdata in allRes}
 
 
@@ -226,7 +251,7 @@ class TournesolAPI:
 			vdata['cached'] = tmstp
 			self.cache['me/videos'][vdata['entity']['uid']] = vdata
 		if saveCache: self.saveCache()
-		return allRes
+		return self.cache['me/videos'].values()
 
 	def getAllMyComparisons(self, useCache=True, saveCache=True) -> list[CData]:
 		def fn_continue(nextRes:list[CData]):
