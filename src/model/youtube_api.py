@@ -37,12 +37,14 @@ def _fetch_tournesol(path):
 	LAST_TNSL_CALL = datetime.datetime.now(datetime.timezone.utc)
 	return response.json()
 
+def timestamp():
+	return datetime.datetime.now(tz=datetime.timezone.utc).isoformat(timespec='seconds')
 
-def _vdata_from_ytdata(data, cache:dict[str,Video]=None):
+def _vdata_from_ytdata(data, cache:dict[str,Video]=None) -> dict[str,any]:
 	#
 	# Parsing youtube data output
 	#
-	newvideos:dict[str,any] = {}
+	newvideos:dict[str,Video] = {}
 	nowDate = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
 	for vdata in data:
 		vid = vdata['id']
@@ -100,14 +102,47 @@ def _vdata_from_ytdata(data, cache:dict[str,Video]=None):
 
 	return newvideos
 
+def _cdata_from_ytcdata(ytdata):
+	cdata = {'cid': ytdata['id']}
+
+	if 'snippet' in ytdata:
+		vsnippet = ytdata['snippet']
+		if 'title' in vsnippet: cdata['title'] = vsnippet['title'].strip()
+		if 'publishedAt' in vsnippet: cdata['published'] = vsnippet['publishedAt']
+		if 'country' in vsnippet: cdata['country'] = vsnippet['country']
+		if 'customUrl' in vsnippet: cdata['handle'] = vsnippet['customUrl']
+
+	vstatistics = ytdata['statistics']
+	cdata['viewCount'] = int(vstatistics['viewCount'])
+	cdata['subCount'] = int(vstatistics['subscriberCount'])
+	cdata['videoCount'] = int(vstatistics['videoCount'])
+
+	localizations = {d.strip()[:2] for d in ytdata.get('localizations', {})}
+	localizations.discard('')
+	cdata['localizations'] = list(localizations)
+
+	cdata['topics'] = [t.split('/')[-1].replace('_', ' ')
+		for t in ytdata.get('topicDetails', {}).get('topicCategories', []) # t: 'https://<??>.wikipedia.org/wiki/<Topic>
+	]
+
+	cdata['playlists'] = {}
+	rel_playlists = ytdata.get('contentDetails', {}).get('relatedPlaylists', {})
+	for playlist_name in rel_playlists:
+		if rel_playlists[playlist_name]:
+			cdata['playlists'][playlist_name] = rel_playlists[playlist_name]
+
+	return cdata
+
 LAST_YT_CALL=datetime.datetime.now(datetime.timezone.utc)
-def _fetch_video_data(videosToFetch: list[str], cache:dict[str,Video]|None):
-	#
-	# Requesting missing data
-	#
+
+@DeprecationWarning # Use YoutubeAPI.get_videos_data instead
+def _fetch_video_data(vids: list[str], cache:dict[str,Video]|None, ignore_cached=False) -> dict[str,Video]:
 	global LAST_YT_CALL
 	youtube = _get_connection()
 	newvideos = {}
+	if ignore_cached and cache:
+		newvideos = {v:cache[v] for v in vids if v in cache}
+		videosToFetch = [v for v in vids if v not in newvideos]
 
 	try:
 		toFetch = len(videosToFetch)
@@ -128,7 +163,7 @@ def _fetch_video_data(videosToFetch: list[str], cache:dict[str,Video]|None):
 		raise e
 
 	nowDate = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
-	for vid in videosToFetch:
+	for vid in vids:
 		if not vid in newvideos:
 			newvideos[vid] = {
 				'vid': vid,
@@ -138,7 +173,7 @@ def _fetch_video_data(videosToFetch: list[str], cache:dict[str,Video]|None):
 	return newvideos
 
 
-def _fetch_channel_data(channelsToFetch: list[str]):
+def _fetch_channel_data(channelsToFetch: list[str]) -> dict[str, Channel]:
 	#
 	# Requesting missing data
 	#
@@ -197,88 +232,8 @@ def _fetch_channel_data(channelsToFetch: list[str]):
 
 	return newchannels
 
-def fetch_channel_videos(channelToFetch: str, cache:dict[str,Video]=None) -> list[str]:
-	vidlist = []
 
-	gen = get_channel_videos(channelToFetch, cache)
-
-	for vid in gen:
-		# Fetch videos from playlist
-		vidlist.append(vid)
-
-	return list(vidlist)
-
-def get_channel_videos(channelToFetch: str, cache:dict[str,Video]=None) -> Generator[str,None,None]:
-	global LAST_YT_CALL
-	youtube = _get_connection()
-
-	try:
-		# Fetch videos playlist
-		request: googleapiclient.http.HttpRequest = youtube.channels().list(
-			forHandle=channelToFetch,
-			part='contentDetails',
-		)
-		print(f"[YTAPI] GET video playlist of @{channelToFetch}...")
-		wait=YT_API_DELAY-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
-		if wait > 0:
-			time.sleep(wait)
-		response = request.execute()
-		LAST_YT_CALL=datetime.datetime.now(datetime.timezone.utc)
-		channelInfo = (response['items'] if 'items' in response else [{}])[0]
-		'''
-		{
-			'kind': 'youtube#channel',
-			'etag': 'rzgWKwSxZEdZvlCOECf6uGiqXYA',
-			'id': 'UC9-y-6csu5WGm29I7JiwpnA',
-			'contentDetails': {
-				'relatedPlaylists': {
-					'likes': '',
-					'uploads': 'UU9-y-6csu5WGm29I7JiwpnA'
-				}
-			}
-		}
-		'''
-		uploadsListId = channelInfo.get('contentDetails', {}).get('relatedPlaylists', {}).get('uploads', None)
-		if not uploadsListId:
-			print(f"[YTAPI] No video found for handle @{channelToFetch}")
-			return
-
-		# Fetch videos from playlist
-		doContinue = True
-		nextPage=None
-		page=1
-		while doContinue:
-			request: googleapiclient.http.HttpRequest = youtube.playlistItems().list(
-				playlistId=uploadsListId,
-				part='snippet', # Information to get
-				maxResults=MAX_FETCH_SIZE,
-				pageToken=nextPage,
-			)
-
-			wait=YT_API_DELAY-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
-			if wait > 0:
-				time.sleep(wait)
-
-			print(f"[YTAPI] GET videos from @{channelToFetch} page {page}...")
-			response = request.execute()
-			LAST_YT_CALL=datetime.datetime.now(datetime.timezone.utc)
-
-			for v in response['items']:
-				yield v['snippet']['resourceId']['videoId']
-
-			nextPage=response.get('nextPageToken', None)
-			if not nextPage:
-				doContinue = False
-			else:
-				page+=1
-
-	except Exception as e:
-		print('Fetch failed.')
-		raise e
-
-	return
-
-class Video(dict):
+class Video():
 	def __init__(self, json: dict[str, any]):
 		self.raw = json
 		self.id: str = json['vid']
@@ -313,6 +268,8 @@ class Video(dict):
 			return f"[{self.id}] (Unknown channel): {self.raw['title']}"
 		return f"[{self.id}]"
 
+	def __repr__(self):
+		return f"<Video {self.id}" + (f" by {self.channel.__repr__}" if self.channel else '') + '>'
 	def __str__(self):
 		return self.short_str()
 
@@ -320,6 +277,8 @@ class Channel():
 	def __init__(self, json: dict[str, any]):
 		self.raw = json
 		self.id: str = json['cid']
+		self.handle: str = json.get('handle', None)
+		self.videos: dict[str, Video] = {}
 
 	def __getitem__(self, key):
 		return self.get(key)
@@ -327,12 +286,16 @@ class Channel():
 	def get(self, key, default=None):
 		return self.raw.get(key, default)
 
+	def __repr__(self):
+		return "<Channel " + (f"@{self.handle}" if self.handle else self.id) + (f' "{self.raw['title']}"' if 'title' in self.raw else '') + '>'
+
 	def __str__(self):
 		if 'title' in self.raw:
 			return self.raw['title']
 		else:
 			return f"[{self.id}]"
 
+@DeprecationWarning # Use YoutubeAPI instead
 class YTData:
 	def __init__(self):
 		self.videos: dict[str, Video] = dict()
@@ -444,3 +407,350 @@ class YTData:
 				if toRm not in vids:
 					self.videos.pop(toRm)
 			print(f"Kept {len(self.videos)} videos from History.")
+
+	def get_videos_data(self, vids: list[str]) -> dict[str,Video]:
+		#
+		# Requesting missing data
+		#
+		global LAST_YT_CALL
+		youtube = _get_connection()
+		newvideos = {}
+		newvideos = {v:self.videos[v] for v in vids if v in self.videos}
+		# TODO: Still fetch depending on self.videos[#].updated date (to refresh every often)
+		videosToFetch = [v for v in vids if v not in newvideos]
+
+		if videosToFetch:
+			try:
+				toFetch = len(videosToFetch)
+				print(f"[YTAPI] GET videos data... ({len(toFetch)})", end=' ')
+				for i in range(0, toFetch, MAX_FETCH_SIZE):
+					print(i+len(subsample), end=' ')
+					subsample = videosToFetch[i:i+MAX_FETCH_SIZE]
+					wait=YT_API_DELAY-(datetime.datetime.now(datetime.timezone.utc)-LAST_YT_CALL).total_seconds()
+					if wait > 0:
+						time.sleep(wait)
+					request: googleapiclient.http.HttpRequest = youtube.videos().list(
+						part='id,snippet,statistics,localizations,contentDetails,topicDetails', # Information to get
+						id= ','.join(subsample) # vid to get
+					)
+					response = request.execute()['items']
+					LAST_YT_CALL = datetime.datetime.now(datetime.timezone.utc)
+					resp = _vdata_from_ytdata(response, cache=self.videos)
+					newvideos.update(resp)
+				print('.')
+			except Exception as e:
+				print('Fetch failed.')
+				raise e
+
+		nowDate = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+		for vid in vids:
+			if not vid in newvideos:
+				newvideos[vid] = {
+					'vid': vid,
+					'updated': nowDate
+				}
+
+		return newvideos
+
+
+
+class YoutubeAPIDelay:
+	"""
+	Usage:
+		with YoutubeAPIDelay(YTAPI):
+			# call to Youtube API
+	"""
+	def __init__(self, api:YoutubeAPI):
+		self.api = api
+
+	def __enter__(self):
+		wait=self.api._delay-(time.time()-self.api._last_api_call)
+		if wait > 0:
+			time.sleep(wait)
+
+	def __exit__(self, type, value, traceback):
+		self.api._last_api_call = time.time()
+
+
+class YoutubeAPI:
+	def __init__(self):
+		self.videos: dict[str, Video] = dict() # YT video ID (11 char)
+		self.channels: dict[str, Channel] = dict() # YT channel id (Uxxxxxxxxxxxxx)
+
+		# YoutubeAPIDelay
+		self._delay = .25
+		self._last_api_call = time.time()
+
+		# Cache file
+		self.autosave:str = None
+
+	def _update_vid_channel_links(self, vids:list[str]=None):
+		# Update Channel and Video objects links
+		remv = 0
+		cnct = 0
+		for vid in (vids or self.videos):
+			if not vid in self.videos:
+				continue
+			vdata: Video = self.videos[vid]
+			if not isinstance(vdata, Video):
+				raise f"!!! _update_vid_channel_links : YTAPI.videos[{vid}] is not a video: = {vdata} !!!"
+			if vdata['cid'] and vdata['cid'] in self.channels:
+				vdata.channel = self.channels[vdata['cid']]
+				self.channels[vdata['cid']].videos[vid] = vdata
+				cnct += 1
+		if remv > 0:
+			print()
+		if cnct > 0:
+			print('_update_vid_channel_links connected', cnct, 'videos to their channels')
+
+	### Files ###
+
+	def load(self, filename: str, autosave=False):
+		vcnt = 0
+		ccnt = 0
+
+		unloaded_data = load_json_gz(filename)
+
+		for v in unloaded_data['VIDEOS']:
+			if not v in self.videos or self.videos[v]['updated'] < unloaded_data['VIDEOS'][v]['updated']:
+				self.videos[v] = Video(unloaded_data['VIDEOS'][v])
+				vcnt += 1
+		for c in unloaded_data['CHANNELS']:
+			if not c in self.channels or self.channels[c]['updated'] < unloaded_data['CHANNELS'][c]['updated']:
+				self.channels[c] = Channel(unloaded_data['CHANNELS'][c])
+				ccnt += 1
+		print(f'Loaded {vcnt} videos & {ccnt} channels from cache')
+
+		self._update_vid_channel_links()
+
+		if autosave:
+			self.autosave = filename
+
+	def save(self, filename: str, print_log:bool = True):
+		json_data = {
+			'VIDEOS': {k:self.videos[k].raw for k in self.videos},
+			'CHANNELS': {k:self.channels[k].raw for k in self.channels}
+		}
+
+		savedfile = save_json_gz(filename, json_data)
+		if print_log:
+			print(f'YTData saved to file {savedfile}', flush=True)
+
+
+	### API ###
+
+	def get_channel_from_handle(self, handle:str) -> Channel:
+		# Lookup in cache
+		handle = handle.lower()
+		for c in self.channels.values():
+			if c.handle == handle or c.handle == '@' + handle:
+				return c
+
+		requested_channel = None
+		try:
+			youtube = _get_connection()
+			print(f"[YTAPI] Get channel @{handle}...")
+			request: googleapiclient.http.HttpRequest = youtube.channels().list(
+				part='id,snippet,statistics,topicDetails,contentDetails', # Information to get
+				forHandle=handle,
+			)
+			with YoutubeAPIDelay(self):
+				result = request.execute()
+
+			nowdate = timestamp()
+			for ytcdata in result['items']:
+				cdata = _cdata_from_ytcdata(ytcdata)
+				cdata['updated'] = nowdate
+				cid = cdata['cid']
+				requested_channel = self.channels[cid] = Channel(cdata)
+
+			if self.autosave:
+				self.save(self.autosave, print_log=False)
+		except Exception as e:
+			print('Fetch failed.')
+			raise e
+		return requested_channel
+
+	def get(self, cids:list[str]) -> dict[str, Channel]:
+		# Get data from cache
+		requested_cdata = {c: self.channels[c] for c in cids if c in self.channels}
+
+		# Requesting missing data
+		toFetch = [c for c in cids if c not in requested_cdata]
+		# Also request channels not updated for a certain time
+		for cid,channel in requested_cdata.items():
+			last_fetch = datetime.datetime.fromisoformat(channel.raw['updated'])
+			current = datetime.datetime.now(datetime.timezone.utc)
+			elapsed = (current - last_fetch).days
+			if elapsed > 31:
+				toFetch.append(cid)
+
+		if toFetch:
+			fetched = []
+			try:
+				youtube = _get_connection()
+				print(f"[YTAPI] Get channels data... (/{len(toFetch)})", end=' ')
+				for i in range(0, len(toFetch), MAX_FETCH_SIZE):
+					subsample = toFetch[i:i+MAX_FETCH_SIZE]
+					request: googleapiclient.http.HttpRequest = youtube.channels().list(
+						part='id,snippet,statistics,topicDetails,contentDetails', # Information to get
+						id= ','.join(subsample) # cid to get
+					)
+					with YoutubeAPIDelay(self):
+						result = request.execute()
+						print()
+						print(subsample)
+						print(result)
+
+					nowdate = timestamp()
+					for ytcdata in result['items']:
+						cdata = _cdata_from_ytcdata(ytcdata)
+						cdata['updated'] = nowdate
+						cid = cdata['cid']
+						self.channels[cid] = requested_cdata[cid] = Channel(cdata)
+						fetched.append(cid)
+
+					if self.autosave:
+						self.save(self.autosave, print_log=False)
+
+					print(len(fetched), end=' ')
+				self._update_vid_channel_links()
+				print('.')
+			except Exception as e:
+				print('Fetch failed.')
+				raise e
+
+		# Set blank data if could not fetch
+		if len(requested_cdata) < len(cids):
+			nowdate = timestamp()
+			for cid in cids:
+				if not cid in requested_cdata:
+					self.channels[cid] = requested_cdata[cid] = Channel({'cid': cid, 'updated': nowdate})
+
+			if self.autosave:
+				self.save(self.autosave, print_log=False)
+
+		return requested_cdata
+
+	def get_videos_data(self, vids:list[str]) -> dict[str,Video]:
+		# Get data from cache
+		requested_vdata = {v:self.videos[v] for v in vids if v in self.videos}
+
+		# Requesting missing data
+		toFetch = [v for v in vids if v not in requested_vdata]
+		# Also request videos not updated for a certain time
+		for vid,video in requested_vdata.items():
+			last_fetch = datetime.datetime.fromisoformat(video.raw['updated'])
+			current = datetime.datetime.now(datetime.timezone.utc)
+			elapsed = (current - last_fetch).days
+			if elapsed > 90:
+				toFetch.append(vid)
+
+		if toFetch:
+			try:
+				youtube = _get_connection()
+				fetched = []
+				print(f"[YTAPI] Get videos data... (/{len(toFetch)})", end=' ')
+				for i in range(0, len(toFetch), MAX_FETCH_SIZE):
+					subsample = toFetch[i:i+MAX_FETCH_SIZE]
+
+					request: googleapiclient.http.HttpRequest = youtube.videos().list(
+						part='id,snippet,statistics,localizations,contentDetails,topicDetails', # Information to get
+						id= ','.join(subsample) # videos to get
+					)
+					with YoutubeAPIDelay(self):
+						response = request.execute()['items']
+
+					for vid,vdata in _vdata_from_ytdata(response, cache=self.videos).items():
+						vdata['updated'] = timestamp()
+						fetched.append(vid)
+						requested_vdata[vid] = Video(vdata)
+
+					if self.autosave:
+						self.save(self.autosave, print_log=False)
+
+					print(len(fetched), end=' ')
+				self._update_vid_channel_links(fetched)
+				print('.')
+			except Exception as e:
+				print('[YTAPI] Fetch failed.')
+				raise e
+
+		# Set blank data if could not fetch
+		if len(requested_vdata) < len(vids):
+			nowDate = timestamp()
+			for vid in vids:
+				if not vid in requested_vdata:
+					requested_vdata[vid] = self.videos[vid] = Video({
+						'vid': vid,
+						'updated': nowDate
+					})
+
+			if self.autosave:
+				self.save(self.autosave, print_log=False)
+
+		return requested_vdata
+
+	def get_channel_videos(self, channelHandle: str) -> dict[str,Video]:
+		# Fetch channel data
+		channel = self.get_channel_from_handle(channelHandle)
+
+		# Check if last fetch was recent
+		if 'last_fetch_uploads' in channel.raw:
+			last_fetch = datetime.datetime.fromisoformat(channel.raw['last_fetch_uploads'])
+			current = datetime.datetime.now(tz=datetime.timezone.utc)
+			elapsed = (current - last_fetch).days
+			if elapsed <= 31:
+				return channel.videos
+
+		try:
+			youtube = _get_connection()
+
+			# Fetch uploads playlist
+			if not 'uploads' in channel.raw['playlists']:
+				print(f"[YTAPI] No playlist @{channelHandle}/uploads found")
+				return
+
+			# Fetch videos from playlist
+			doContinue = True
+			nextPage=None
+			total=None
+			page=1
+			print(f"[YTAPI] Get videos from @{channelHandle}/uploads...", end=' ')
+			fetched = []
+			while doContinue:
+				request: googleapiclient.http.HttpRequest = youtube.playlistItems().list(
+					playlistId=channel.raw['playlists']['uploads'],
+					part='snippet', # Information to get
+					maxResults=MAX_FETCH_SIZE,
+					pageToken=nextPage,
+				)
+
+				with YoutubeAPIDelay(self):
+					response = request.execute()
+
+				# Get video data to cache
+				fetched.extend(ytv['snippet']['resourceId']['videoId'] for ytv in response['items'])
+
+				if not total:
+					total = response['pageInfo']['totalResults']
+					print(f"{len(fetched)}/{total}", end=' ')
+				else:
+					# If total results == current channel videos data: do not continue (we already know all videos in cache)
+					print(len(fetched), end=' ')
+
+				nextPage=response.get('nextPageToken', None)
+				if not nextPage:
+					doContinue = False
+				else:
+					page+=1
+			channel.raw['last_fetch_uploads'] = timestamp()
+			if self.autosave:
+				self.save(self.autosave, print_log=False)
+			print('.')
+
+			# Fetch video data:
+			return self.get_videos_data(fetched)
+		except Exception as e:
+			print('Fetch failed.')
+			raise e

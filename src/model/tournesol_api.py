@@ -130,8 +130,6 @@ class TournesolAPI:
 				'http': self.proxy,
 				'https': self.proxy,
 			} if self.proxy is not None else None
-			if proxies:
-				print('Proxy:', proxies)
 
 			response:requests.Response = method(self.base_url + path,
 				headers={'Authorization': self.jwt} if self.jwt else None,
