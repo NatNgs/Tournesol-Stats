@@ -9,6 +9,7 @@ function DatasetManager() {
 	this.individualScores = []
 	this.collectiveScores = []
 	this.comparisons = []
+	this.loadedUser =
 
 	this.setZip = (file, cb) => {
 		var zip = new JSZip()
@@ -17,12 +18,12 @@ function DatasetManager() {
 				THIS.zip = content
 				THIS.loadCollectiveScores(cb || NO_CB)
 			},
-			() => alert("Not a valid zip file")
+			() => cb(false)
 		)
 	}
 
 	this.loadUserData = (user, cb) => {
-		if(!user) {
+		if(!user || !this.zip) {
 			cb(false)
 		}
 		const next = () => {
@@ -44,6 +45,9 @@ function DatasetManager() {
 
 	this.loadCollectiveScores = (cb) => {
 		const ta = new Date()
+		if(!THIS.zip || !THIS.zip.files || !('collective_criteria_scores.csv' in THIS.zip.files)) {
+			return cb(false)
+		}
 		THIS.zip.file('collective_criteria_scores.csv').async('string').then(csvText => {
 			// Séparer les lignes par le retour à la ligne
 			const rows = csvText.trim().split('\n')
@@ -65,8 +69,8 @@ function DatasetManager() {
 				return obj
 			})
 			console.log('Loaded ' + THIS.collectiveScores.length + ' collective scores in', (new Date()-ta)/1000, 'seconds')
-			if(cb) cb();
-		})
+			if(cb) cb(true);
+		}).catch(() => cb && cb(false))
 	}
 
 	this.loadIndividualScores = (user, cb) => {
