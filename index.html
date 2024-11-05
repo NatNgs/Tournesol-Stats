@@ -43,30 +43,36 @@
 				userapply.setAttribute('disabled', 'disabled')
 				usernameinpt.setAttribute('disabled', 'disabled')
 
-				// Prepare data
+				// Prepare graph
 				const graph = new TnslGraph(dataset)
-				for(const c of dataset.comparisons[selectedUsername]['largely_recommended']) {
-					graph.addLink(c.pos, c.neg)
+				for(const w in dataset.comparisons[selectedUsername]['largely_recommended']) {
+					for(const c of dataset.comparisons[selectedUsername]['largely_recommended'][w]) {
+						graph.addLink(c.pos, c.neg)
+					}
 				}
 
 				// Update stats
-				document.getElementById("pub_vid").innerText = graph.data.nodes.length
-				document.getElementById("pub_cmp").innerText = graph.data.links.length
+				document.getElementById("stt_nb_videos").innerText = dataset.individualScores[selectedUsername].length
+				document.getElementById("stt_comparisons").innerText = graph.data.links.length
 
-				// groups
+				// connected components
 				const gm = {}
 				graph.data.groups.forEach(g => gm[g.length] = (gm[g.length] || 0) + 1)
 				const gs = Object.keys(gm)
 				gs.sort((a,b)=>+a<+b?1:-1)
-				document.getElementById("stt_groups").innerText = gs.map(size=>'' + size +(gm[size] > 1 ? `(x${gm[size]})` : '')).join(', ')
+				document.getElementById("stt_connected_components").innerText = gs.map(size=>'' + size +(gm[size] > 1 ? `(x${gm[size]})` : '')).join(', ')
+
+				// Candidates (WIP)
+				const candidates = graph.suggestComparison()
+				document.getElementById('stt_candidates').innerHTML = candidates.length
 
 				// Add graph viz to viewport
 				document.getElementById('graph').innerHTML = ''
-				loading.innerText = 'Drawing graph...'
+				loading.innerText = 'Drawing graph, please wait...'
 				document.getElementById('graph').appendChild(graph.getDiv(() => {
 					userapply.removeAttribute('disabled')
 					usernameinpt.removeAttribute('disabled')
-					loading.innerText = 'IDLE (Drawing complete)'
+					loading.innerText = 'Drawing complete.'
 				}))
 			}
 		</script>
@@ -86,9 +92,10 @@
 			<div id="graph"></div>
 			<div id="stats">
 				<div style="background: #F4F8E8; width:100%; padding: .25em;"><span id="loading_status">IDLE (Please set Dataset file, pick a username, and then click on Apply)</span></div>
-				<div>Public videos: <span id="pub_vid">0</span></div>
-				<div>Public comparisons: <span id="pub_cmp">0</span></div>
-				<div>Connected components: <span id="stt_groups">0</span></div>
+				<div>Public videos: <span id="stt_nb_videos">0</span></div>
+				<div>Public comparisons: <span id="stt_comparisons">0</span></div>
+				<div>Connected components: <span id="stt_connected_components">0</span></div>
+				<div>Candidates for comparisons suggestions: <span id="stt_candidates">0</span></div>
 			</div>
 		</div>
 		<div id="footer">

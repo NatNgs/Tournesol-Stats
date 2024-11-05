@@ -11,6 +11,7 @@ function Node(id, index, dataset) {
 	this.indiv_cmps = [] // list of node objects this one is linked to
 	this.distances = {} // distance from this node to others (only contains reachable ones) - nodes in indiv_cmps will have distance=1
 	this.distances[id] = 0 // distance to self = 0
+	this.n_contributors = Object.values(dataset.individualScores).filter(userscores => id in userscores).length // number of public contributors of this video
 
 	// d3js Will set and use following properties: this.x, this.y, this.vx, this.vy
 }
@@ -19,7 +20,7 @@ function Node(id, index, dataset) {
  * @param {DatasetManager} dataset
  */
 function TnslGraph(dataset) {
-	console.log(this)
+	console.log('TnslGraph', this)
 
 	// // // Properties // // //
 
@@ -134,7 +135,20 @@ function TnslGraph(dataset) {
 
 	this.suggestComparison = () => {
 		const candidates = []
-		// Add in candidates, every node that have less comparisons (node.indiv_cmps.length) than public contributors (node.collective_rating.n_contributors)
+		// Add in candidates, every node that:
+		// - have less comparisons (node.indiv_cmps.length) than public contributors (node.n_contributors)
+		// - AND have any comparison since last year
+		for(const node of this.data.nodes) {
+			if(node.indiv_cmps.length < node.n_contributors) {
+				candidates.push(node)
+			}
+		}
+
+		// Sort them by their avg_dist
+		const avg_dists = {}
+		candidates.forEach(n => avg_dists[n.id] = _getNodeAvgDist(n))
+		candidates.sort((a,b) => avg_dists[a]>avg_dists[b]?1:-1)
+		return candidates
 	}
 
 	// // // PRIVATE // // //
