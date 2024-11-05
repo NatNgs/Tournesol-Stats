@@ -9,6 +9,7 @@
 			const dataset = new DatasetManager()
 
 			function onSetDatasetZip() {
+				const loading = document.getElementById('loading_status')
 				const fileInput = document.getElementById('datasetzip')
 				const userapply = document.getElementById('userapply')
 				const file = fileInput.files[0]
@@ -16,13 +17,17 @@
 				if(file) {
 					fileInput.setAttribute('disabled', 'disabled')
 					userapply.setAttribute('disabled', 'disabled')
-					dataset.setZip(file, (status)=>{
+					dataset.setZip(file, (status) => loading.innerText = status)
+					.then(() => {
 						fileInput.removeAttribute('disabled')
 						userapply.removeAttribute('disabled')
-						if(!status) {
-							alert("Invalid file. Expecting exported tournesol dataset")
-							fileInput.value = null
-						}
+						loading.innerText = 'Dataset loaded successfully. Select a user and Apply to continue'
+					})
+					.catch((err) => {
+						fileInput.removeAttribute('disabled')
+						console.error(err)
+						loading.innerText = 'Failed to load dataset (' + err + '). Please try again with another file.'
+						fileInput.value = null
 					})
 				}
 			}
@@ -30,56 +35,40 @@
 			function onApplyUsername() {
 				// Show loading
 				const loading = document.getElementById('loading_status')
-
 				const userapply = document.getElementById('userapply')
 				const usernameinpt = document.getElementById('username')
 				const selectedUsername = usernameinpt.value
 
-				loading.innerText = 'Loading dataset...'
+				loading.innerText = 'Loading user data...'
 				userapply.setAttribute('disabled', 'disabled')
 				usernameinpt.setAttribute('disabled', 'disabled')
 
 				// Prepare data
-				dataset.loadUserData(selectedUsername, (isOk) => {
-					if(!isOk) {
-						userapply.removeAttribute('disabled')
-						usernameinpt.removeAttribute('disabled')
-						loading.innerText = 'IDLE (Set Dataset file, pick a username and then click on Apply)'
-						return
-					}
+				const graph = new TnslGraph(dataset)
+				for(const c of dataset.comparisons[selectedUsername]['largely_recommended']) {
+					graph.addLink(c.pos, c.neg)
+				}
 
-					const indivScores = dataset.individualScores.filter(c => c.criteria === 'largely_recommended')
-					const filteredComparisons = dataset.comparisons.filter(c => c.criteria === 'largely_recommended')
+				// Update stats
+				document.getElementById("pub_vid").innerText = graph.data.nodes.length
+				document.getElementById("pub_cmp").innerText = graph.data.links.length
 
-					// Prepare data
-					const graph = new TnslGraph()
-					for(const c of filteredComparisons) {
-						graph.addLink(c.video_a, c.video_b)
-					}
+				// groups
+				const gm = {}
+				graph.data.groups.forEach(g => gm[g.length] = (gm[g.length] || 0) + 1)
+				const gs = Object.keys(gm)
+				gs.sort((a,b)=>+a<+b?1:-1)
+				document.getElementById("stt_groups").innerText = gs.map(size=>'' + size +(gm[size] > 1 ? `(x${gm[size]})` : '')).join(', ')
 
-					// Update stats
-					document.getElementById("pub_vid").innerText = graph.data.nodes.length
-					document.getElementById("pub_cmp").innerText = graph.data.links.length
-
-					// groups
-					const gm = {}
-					graph.data.groups.forEach(g => gm[g.length] = (gm[g.length] || 0) + 1)
-					const gs = Object.keys(gm)
-					gs.sort((a,b)=>+a<+b?1:-1)
-					document.getElementById("stt_groups").innerText = gs.map(size=>'' + size +(gm[size] > 1 ? `(x${gm[size]})` : '')).join(', ')
-
-					// Add graph viz to viewport
-					document.getElementById('graph').innerHTML = ''
-					loading.innerText = 'Drawing graph...'
-					document.getElementById('graph').appendChild(graph.getDiv(() => {
-						userapply.removeAttribute('disabled')
-						usernameinpt.removeAttribute('disabled')
-						loading.innerText = 'IDLE (Drawing complete)'
-					}))
-				})
+				// Add graph viz to viewport
+				document.getElementById('graph').innerHTML = ''
+				loading.innerText = 'Drawing graph...'
+				document.getElementById('graph').appendChild(graph.getDiv(() => {
+					userapply.removeAttribute('disabled')
+					usernameinpt.removeAttribute('disabled')
+					loading.innerText = 'IDLE (Drawing complete)'
+				}))
 			}
-
-
 		</script>
 	</head>
 	<body>
@@ -104,7 +93,7 @@
 		</div>
 		<div id="footer">
 			<div class="hf">
-				<span>Build 2024-10-30 - INDEV VERSION (= Contains bugs)</span>
+				<span>Build 2024-11-05 - INDEV VERSION (= Contains bugs)</span>
 				<span>by @NatNgs</span>
 				<a href="https://tournesol.app/about">About Tournesol.app</a>
 			</div>

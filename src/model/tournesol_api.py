@@ -94,7 +94,8 @@ class TournesolAPI:
 		self.proxy = proxy
 
 		self.username = None
-		self.jwt = jwt
+		self.jwt = jwt.strip()
+		if not self.jwt.startswith('Bearer '): self.jwt = 'Bearer ' + self.jwt
 		if jwt: # Authenticate
 			userdetails = self.call_get('accounts/profile')
 			assert userdetails

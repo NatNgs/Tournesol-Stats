@@ -1,5 +1,10 @@
 
-function Node(id, index) {
+/**
+ * @param {string} id youtube video id
+ * @param {number} index numerical id
+ * @param {DatasetManager} dataset
+ */
+function Node(id, index, dataset) {
 	this.id = id // youtube video id
 	this.index = index // nodes.indexOf(#) == this node
 	this.group = -1 // groups.indexOf(#) contains this node
@@ -7,10 +12,13 @@ function Node(id, index) {
 	this.distances = {} // distance from this node to others (only contains reachable ones) - nodes in indiv_cmps will have distance=1
 	this.distances[id] = 0 // distance to self = 0
 
-	// Will be set properties (x, y, vx, vy) by d3js for displaying graph
+	// d3js Will set and use following properties: this.x, this.y, this.vx, this.vy
 }
 
-function TnslGraph() {
+/**
+ * @param {DatasetManager} dataset
+ */
+function TnslGraph(dataset) {
 	console.log(this)
 
 	// // // Properties // // //
@@ -24,21 +32,23 @@ function TnslGraph() {
 	this.div = null // @see _makeD3
 
 	// // // PUBLIC // // //
-	this.addLink = (nodea, nodeb) => {
+	this.addLink = (na_id, nb_id) => {
 		// nodes
-		if(!this.data.nodes_index[nodea] && this.data.nodes_index[nodea] !== 0) {
+		if(!this.data.nodes_index[na_id] && this.data.nodes_index[na_id] !== 0) {
+			// Initiate new node na
 			const index = this.data.nodes.length
-			this.data.nodes_index[nodea] = index
-			this.data.nodes[index] = new Node(nodea, index)
+			this.data.nodes_index[na_id] = index
+			this.data.nodes[index] = new Node(na_id, index, dataset)
 		}
-		const na = this.data.nodes[this.data.nodes_index[nodea]]
+		const na = this.data.nodes[this.data.nodes_index[na_id]]
 
-		if(!this.data.nodes_index[nodeb] && this.data.nodes_index[nodeb] !== 0) {
+		if(!this.data.nodes_index[nb_id] && this.data.nodes_index[nb_id] !== 0) {
+			// Initiate new node nb
 			const index = this.data.nodes.length
-			this.data.nodes_index[nodeb] = index
-			this.data.nodes[index] = new Node(nodeb, index)
+			this.data.nodes_index[nb_id] = index
+			this.data.nodes[index] = new Node(nb_id, index, dataset)
 		}
-		const nb = this.data.nodes[this.data.nodes_index[nodeb]]
+		const nb = this.data.nodes[this.data.nodes_index[nb_id]]
 
 		// links
 		this.data.links.push({source: na, target: nb})
@@ -121,6 +131,12 @@ function TnslGraph() {
 		}
 		return div
 	}
+
+	this.suggestComparison = () => {
+		const candidates = []
+		// Add in candidates, every node that have less comparisons (node.indiv_cmps.length) than public contributors (node.collective_rating.n_contributors)
+	}
+
 	// // // PRIVATE // // //
 
 	const _getNodeAvgDist = (node) => {
