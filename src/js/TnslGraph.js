@@ -1,14 +1,25 @@
 
+function Node(id, index) {
+	this.id = id // youtube video id
+	this.index = index // nodes.indexOf(#) == this node
+	this.group = -1 // groups.indexOf(#) contains this node
+	this.indiv_cmps = [] // list of node objects this one is linked to
+	this.distances = {} // distance from this node to others (only contains reachable ones) - nodes in indiv_cmps will have distance=1
+	this.distances[id] = 0 // distance to self = 0
+
+	// Will be set properties (x, y, vx, vy) by d3js for displaying graph
+}
+
 function TnslGraph() {
 	console.log(this)
 
 	// // // Properties // // //
 
 	this.data = {
-		nodes_index: {},
-		nodes: [],
+		nodes_index: {}, // map node.id => index (for d3js)
+		nodes: [], // list of node objects -- WARN: Node.index is the location of the node within this list, sort/pop carefully
 		links: [],
-		groups: [],
+		groups: [], // list of groups; every group is a list of node objects
 	}
 	this.div = null // @see _makeD3
 
@@ -18,14 +29,14 @@ function TnslGraph() {
 		if(!this.data.nodes_index[nodea] && this.data.nodes_index[nodea] !== 0) {
 			const index = this.data.nodes.length
 			this.data.nodes_index[nodea] = index
-			this.data.nodes[index] = {id: nodea, index:index, group: -1, indiv_cmps:[]}
+			this.data.nodes[index] = new Node(nodea, index)
 		}
 		const na = this.data.nodes[this.data.nodes_index[nodea]]
 
 		if(!this.data.nodes_index[nodeb] && this.data.nodes_index[nodeb] !== 0) {
 			const index = this.data.nodes.length
 			this.data.nodes_index[nodeb] = index
-			this.data.nodes[index] = {id: nodeb, index:index, group: -1, indiv_cmps:[]}
+			this.data.nodes[index] = new Node(nodeb, index)
 		}
 		const nb = this.data.nodes[this.data.nodes_index[nodeb]]
 
@@ -52,17 +63,54 @@ function TnslGraph() {
 			// Merge groups
 			const g_merge = na.group < nb.group ? na.group : nb.group
 			const g_suppr = na.group < nb.group ? nb.group : na.group
+
+			// Update distances of both group members
+			for(const sub_na of this.data.groups[na.group]) {
+				for(const sub_nb of this.data.groups[nb.group]) {
+					// New distance is distance from neigbor_of_na to na + distance from na to nb + distance from nb to neighbor_of_nb
+					// distance from na to nb will be 1 as we are currently adding this link
+					const d = sub_na.distances[na.id] + 1 + sub_nb.distances[nb.id]
+					sub_na.distances[sub_nb.id] = d
+					sub_nb.distances[sub_na.id] = d
+				}
+			}
+
+			// Do merge groups
 			for(const n of this.data.groups[g_suppr]) {
 				this.data.groups[g_merge].push(n)
 				n.group = g_merge
 			}
 			const last_g = this.data.groups.length-1
+
+			// Remove empty group from groups list
 			if(g_suppr < last_g) {
-				// Remove empty group from groups list
 				this.data.groups[g_suppr] = this.data.groups[last_g]
 				this.data.groups[last_g].forEach(n => n.group = g_suppr)
 			}
 			this.data.groups.pop()
+		}
+
+		// Update distances to na
+		for(const sub_nb_id in nb.distances) {
+			const d = nb.distances[sub_nb_id] + 1
+			if(!(sub_nb_id in na.distances) || na.distances[sub_nb_id] > d) {
+				na.distances[sub_nb_id] = d
+				this.data.nodes[this.data.nodes_index[sub_nb_id]].distances[na.id] = d
+			}
+		}
+		// Update distances to nb
+		for(const sub_na_id in na.distances) {
+			const d = na.distances[sub_na_id] + 1
+			if(!(sub_na_id in nb.distances) || nb.distances[sub_na_id] > d) {
+				nb.distances[sub_na_id] = d
+				this.data.nodes[this.data.nodes_index[sub_na_id]].distances[nb.id] = d
+			}
+		}
+
+		// Check for error (if triggered, means DEV mistake)
+		if(Object.values(na.distances).length < this.data.groups[na.group].length || Object.values(nb.distances).length < this.data.groups[nb.group].length) {
+			console.log(na, nb, this.data.groups[na.group])
+			throw '!!! Distances - Group mismatch !!!'
 		}
 	}
 
@@ -75,52 +123,37 @@ function TnslGraph() {
 	}
 	// // // PRIVATE // // //
 
-	const _computeCentralities = (group) => {
-		// Helper function to perform BFS and calculate distances
-
-		group.map((startNode) => {
-			const queue = [startNode];
-			const distances = {};
-			distances[startNode.id] = 0; // Distance to itself is 0
-
-			let dist_sum = 0;
-			while (queue.length) {
-				const currentNode = queue.shift();
-				const currentDistance = distances[currentNode.id];
-
-				// Iterate over neighbors
-				for (let neighbor of currentNode.indiv_cmps) {
-					if (!(neighbor.id in distances)) { // If neighbor hasn't been visited
-						distances[neighbor.id] = currentDistance + 1 // Set distance
-						queue.push(neighbor)
-						dist_sum += currentDistance + 1
-					}
-				}
-			}
-
-			startNode.centrality = dist_sum/(group.length-1);
+	const _getNodeDecentrality = (node) => {
+		/**
+		 * @returns Average distance to every reachable node
+		 */
+		return Object.values(node.distances).reduce((a,b)=>a+b, 0) / (this.data.nodes.length - 1)
+	}
+	const _d3_node_colors = (nodes) => {
+		const avg_dists = {}
+		const range = []
+		nodes.forEach(n => {
+			const d = _getNodeDecentrality(n)
+			range.push(d)
+			avg_dists[n.id] = d
 		})
+
+		range.sort((a,b)=>a-b>0?1:-1)
+		const q0 = range[0]
+		const q1 = range[(range.length/4)|0]
+		const q2 = range[(range.length/2)|0]
+		const q3 = range[(range.length*3/4)|0]
+		const q4 = range[range.length-1]
+		console.debug('Colorscale:', [q0,q1,q2,q3,q4])
+
+		const _to_color = d3.scaleLinear().domain([q0,q1,q2,q3,q4]).range(['#664400', '#EEAA22', '#088000', '#0FCC00', '#11ddff'])
+
+		return (n) => _to_color(avg_dists[n.id])
 	}
 
 	const _makeD3 = (onend) => {
 		// Select largest connected component
 		const nodes = this.data.groups[0]
-
-		// Specify the color scale.
-		const _colrscale = (range) => {
-			range.sort((a,b)=>a-b>0?1:-1)
-			const q0 = range[0]
-			const q1 = range[(range.length/4)|0]
-			const q2 = range[(range.length/2)|0]
-			const q3 = range[(range.length*3/4)|0]
-			const q4 = range[range.length-1]
-			console.log('Colorscale:', [q0,q1,q2,q3,q4])
-			return d3.scaleLinear().domain([q0,q1,q2,q3,q4]).range(['#664400', '#EEAA22', '#088000', '#0FCC00', '#11ddff'])
-		}
-
-		_computeCentralities(nodes)
-		const color = _colrscale(nodes.map(n => n.centrality))
-		const node_color = (d) => color(d.centrality)
 
 		// Create a simulation with several forces
 		const simulation = d3.forceSimulation(nodes)
@@ -166,7 +199,7 @@ function TnslGraph() {
 			.data(nodes)
 			.join("circle")
 			.attr("r", d => d.indiv_cmps.length)
-			.attr("fill", node_color)
+			.attr("fill", _d3_node_colors(nodes))
 
 		// Set the position attributes of links and nodes each time the simulation ticks.
 		simulation.on("tick", () => {
