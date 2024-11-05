@@ -1,10 +1,17 @@
 :root {
-	--header-height: 2em;
+	--header-height: 3em;
 	--footer-height: 2em;
+	--color-background-main: #D8D8D8;
+	--color-background-graph: white;
+	--color-background-header: rgb(255, 200, 0);
+	--color-text-header: rgba(0, 0, 0, 0.87);
+	--color-background-warn: rgb(18, 130, 178);
+  --color-text-warn: white;
 }
 
 body {
-	background: #D8D8D8;
+	background: var(--color-background-main);
+	font-family: Poppins, "Gill Sans", system-ui, sans-serif;
 }
 
 #header {
@@ -13,39 +20,13 @@ body {
 	width: 100%;
 	top:0;
 	left:0;
-	border-bottom: 1px solid gray;
-	background-color: white;
-}
+	background-color: var(--color-background-header);
+	color: var(--color-text-header);
+	box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px -1px, rgba(0, 0, 0, 0.14) 0px 4px 5px 0px, rgba(0, 0, 0, 0.12) 0px 1px 10px 0px;
 
-#content {
-	margin-top: var(--header-height);
-	margin-bottom: var(--footer-height);
-	padding: .75em .25em;
 	display: flex;
-	gap: 1em;
-}
-
-#graph {
-	min-height: 255px;
-	max-height: calc(100vh - var(--header-height) - var(--header-height) - 2em);
-	min-width: 255px;
-	max-width: 50%;
-	border: 1px solid gray;
-	flex-grow: 1;
-	background: white;
-}
-#stats {
-	flex-grow: 1;
-}
-
-#footer {
-	position: fixed;
-	height: var(--footer-height);
-	width: 100%;
-	bottom: 0;
-	left: 0;
-	border-top: 1px solid gray;
-	background-color: white;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .hf {
@@ -55,4 +36,57 @@ body {
 	justify-content: space-around;
 	align-items: baseline;
 	width: 100%;
+}
+
+h1 {
+	font-family: Poppins-Bold, Poppins, "Gill Sans", system-ui, sans-serif;
+  font-size: 1.5em;
+  font-weight: 700;
+}
+
+#content {
+	margin-top: var(--header-height);
+	margin-bottom: var(--footer-height);
+	padding: 1em .25em;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1em;
+}
+
+#graph {
+	min-height: 255px;
+	max-height: calc(100vh - var(--header-height) - var(--header-height) - 2em);
+	min-width: 1000px;
+	border-radius: 5px;
+	flex: 2;
+	background: var(--color-background-graph);
+
+}
+
+@media (max-width: 1000px) {
+	#graph {
+		min-width: 100%;
+		width: 100%;
+	}
+}
+
+#stats {
+	width: 20em;
+	flex-grow: 1;
+}
+
+.debugging {
+	background: var(--color-background-warn);
+	color: var(--color-text-warn);
+	padding: .25em;
+}
+
+#footer {
+	position: fixed;
+	height: var(--footer-height);
+	width: 100%;
+	bottom: 0;
+	left: 0;
+	background-color: var(--color-background-warn);
+	color: var(--color-text-warn);
 }

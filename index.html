@@ -1,5 +1,6 @@
 <html>
 	<head>
+		<title>Tournesol Entangler</title>
 		<link rel="stylesheet" href="src/css/main.css">
 		<script src="src/js/datasetmanager.js"></script>
 		<script src="src/js/TnslGraph.js"></script>
@@ -80,7 +81,7 @@
 	<body>
 		<div id="header">
 			<div class="hf">
-				<div>Tournesol Entangler</div>
+				<h1>Tournesol Entangler</h1>
 				<div>
 					Dataset:
 					<input type="file" id="datasetzip" accept=".zip" onchange="onSetDatasetZip()"/>
@@ -91,7 +92,7 @@
 		<div id="content">
 			<div id="graph"></div>
 			<div id="stats">
-				<div style="background: #F4F8E8; width:100%; padding: .25em;"><span id="loading_status">IDLE (Please set Dataset file, pick a username, and then click on Apply)</span></div>
+				<div class="debugging"><span id="loading_status">IDLE (Please set Dataset file, pick a username, and then click on Apply)</span></div>
 				<div>Public videos: <span id="stt_nb_videos">0</span></div>
 				<div>Public comparisons: <span id="stt_comparisons">0</span></div>
 				<div>Connected components: <span id="stt_connected_components">0</span></div>
