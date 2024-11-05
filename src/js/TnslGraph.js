@@ -123,21 +123,14 @@ function TnslGraph() {
 	}
 	// // // PRIVATE // // //
 
-	const _getNodeDecentrality = (node) => {
+	const _getNodeAvgDist = (node) => {
 		/**
 		 * @returns Average distance to every reachable node
 		 */
 		return Object.values(node.distances).reduce((a,b)=>a+b, 0) / (this.data.nodes.length - 1)
 	}
-	const _d3_node_colors = (nodes) => {
-		const avg_dists = {}
-		const range = []
-		nodes.forEach(n => {
-			const d = _getNodeDecentrality(n)
-			range.push(d)
-			avg_dists[n.id] = d
-		})
-
+	const _d3_node_colors = (map) => {
+		const range = Object.values(map)
 		range.sort((a,b)=>a-b>0?1:-1)
 		const q0 = range[0]
 		const q1 = range[(range.length/4)|0]
@@ -145,15 +138,28 @@ function TnslGraph() {
 		const q3 = range[(range.length*3/4)|0]
 		const q4 = range[range.length-1]
 		console.debug('Colorscale:', [q0,q1,q2,q3,q4])
-
 		const _to_color = d3.scaleLinear().domain([q0,q1,q2,q3,q4]).range(['#664400', '#EEAA22', '#088000', '#0FCC00', '#11ddff'])
-
-		return (n) => _to_color(avg_dists[n.id])
+		return (n) => _to_color(map[n.id])
 	}
 
 	const _makeD3 = (onend) => {
 		// Select largest connected component
 		const nodes = this.data.groups[0]
+
+		// Compute nodes average distances
+		const avg_dists = {}
+		nodes.forEach(n => avg_dists[n.id] = _getNodeAvgDist(n))
+
+		// Init nodes location, as a spiral from most central to least central
+		nodes.sort((a,b) => avg_dists[a]>avg_dists[b]?1:-1)
+		nodes.forEach((n,i) => {
+			let r = avg_dists[n.id] * Math.sqrt(nodes.length)
+			let ang = i*r
+			n.x = r * Math.cos(ang)
+			n.y = r * Math.sin(ang)
+			n.vx = 0
+			n.vy = 0
+		})
 
 		// Create a simulation with several forces
 		const simulation = d3.forceSimulation(nodes)
@@ -199,7 +205,7 @@ function TnslGraph() {
 			.data(nodes)
 			.join("circle")
 			.attr("r", d => d.indiv_cmps.length)
-			.attr("fill", _d3_node_colors(nodes))
+			.attr("fill", _d3_node_colors(avg_dists))
 
 		// Set the position attributes of links and nodes each time the simulation ticks.
 		simulation.on("tick", () => {
