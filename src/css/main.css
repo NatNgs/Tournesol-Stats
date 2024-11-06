@@ -6,12 +6,12 @@
 	--color-background-header: rgb(255, 200, 0);
 	--color-text-header: rgba(0, 0, 0, 0.87);
 	--color-background-warn: rgb(18, 130, 178);
-  --color-text-warn: white;
+	--color-text-warn: white;
 }
 
 body {
 	background: var(--color-background-main);
-	font-family: Poppins, "Gill Sans", system-ui, sans-serif;
+	font-family: "Gill Sans", system-ui, sans-serif;
 }
 
 #header {
@@ -25,12 +25,12 @@ body {
 	box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 4px -1px, rgba(0, 0, 0, 0.14) 0px 4px 5px 0px, rgba(0, 0, 0, 0.12) 0px 1px 10px 0px;
 
 	display: flex;
-  flex-direction: column;
-  justify-content: center;
+	flex-direction: column;
+	justify-content: center;
 }
 
 .hf {
-	margin: .25em;
+	margin: .5em;
 	display: flex;
 	flex-wrap: nowrap;
 	justify-content: space-around;
@@ -39,9 +39,12 @@ body {
 }
 
 h1 {
-	font-family: Poppins-Bold, Poppins, "Gill Sans", system-ui, sans-serif;
-  font-size: 1.5em;
-  font-weight: 700;
+	font-family: "Gill Sans", system-ui, sans-serif;
+	font-size: 1.5em;
+	font-weight: 700;
+}
+a {
+	color: white;
 }
 
 #content {
@@ -53,32 +56,60 @@ h1 {
 	gap: 1em;
 }
 
+.graphBlock {
+	height: calc(100vh - var(--header-height) - var(--header-height) - 2em);
+	aspect-ratio: 1;
+	flex: 0;
+	display: flex;
+	flex-direction: column;
+}
 #graph {
-	min-height: 255px;
-	max-height: calc(100vh - var(--header-height) - var(--header-height) - 2em);
-	min-width: 1000px;
-	border-radius: 5px;
-	flex: 2;
 	background: var(--color-background-graph);
-
+	width: 100%;
+	flex: 1;
+	border-radius: .5em;
 }
 
-@media (max-width: 1000px) {
-	#graph {
-		min-width: 100%;
+@media (max-width: 90vh) {
+	.graphBlock {
+		flex: 1;
+		height: unset;
 		width: 100%;
+	}
+	#content {
+		flex-direction: column;
 	}
 }
 
 #stats {
-	width: 20em;
-	flex-grow: 1;
+	margin: .5em;
+	display: inline-block;
+	min-width: 20em;
+	min-height: 100%;
+	flex: 1;
 }
 
-.debugging {
-	background: var(--color-background-warn);
+.status {
+	background: #727272;
 	color: var(--color-text-warn);
 	padding: .25em;
+	border-radius: .25em;
+}
+.status.error {
+	background: #B24211;
+}
+.status.success {
+	background: #60A108;
+}
+.status.working {
+	background: linear-gradient(-45deg, #1282B2, #1282B2, #4211B2, #1282B2, #1282B2);
+	background-size: 25%;
+	background-position-x: 0;
+	animation: AnimatedBackgroundPosition 5s linear infinite;
+}
+@keyframes AnimatedBackgroundPosition {
+	0%{background-position-x:0%}
+	100%{background-position-x:100%}
 }
 
 #footer {

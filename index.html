@@ -1,107 +1,46 @@
 <html>
 	<head>
 		<title>Tournesol Entangler</title>
-		<link rel="stylesheet" href="src/css/main.css">
-		<script src="src/js/datasetmanager.js"></script>
-		<script src="src/js/TnslGraph.js"></script>
+
+		<!-- External -->
 		<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 		<script src="https://cdn.jsdelivr.net/npm/jszip/dist/jszip.min.js"></script>
-		<script>
-			const dataset = new DatasetManager()
 
-			function onSetDatasetZip() {
-				const loading = document.getElementById('loading_status')
-				const fileInput = document.getElementById('datasetzip')
-				const userapply = document.getElementById('userapply')
-				const file = fileInput.files[0]
+		<!-- Local scripts -->
+		<script src="src/js/DatasetManager.js"></script>
+		<script src="src/js/TnslGraph.js"></script>
 
-				if(file) {
-					fileInput.setAttribute('disabled', 'disabled')
-					userapply.setAttribute('disabled', 'disabled')
-					dataset.setZip(file, (status) => loading.innerText = status)
-					.then(() => {
-						fileInput.removeAttribute('disabled')
-						userapply.removeAttribute('disabled')
-						loading.innerText = 'Dataset loaded successfully. Select a user and Apply to continue'
-					})
-					.catch((err) => {
-						fileInput.removeAttribute('disabled')
-						console.error(err)
-						loading.innerText = 'Failed to load dataset (' + err + '). Please try again with another file.'
-						fileInput.value = null
-					})
-				}
-			}
-
-			function onApplyUsername() {
-				// Show loading
-				const loading = document.getElementById('loading_status')
-				const userapply = document.getElementById('userapply')
-				const usernameinpt = document.getElementById('username')
-				const selectedUsername = usernameinpt.value
-
-				loading.innerText = 'Loading user data...'
-				userapply.setAttribute('disabled', 'disabled')
-				usernameinpt.setAttribute('disabled', 'disabled')
-
-				// Prepare graph
-				const graph = new TnslGraph(dataset)
-				for(const w in dataset.comparisons[selectedUsername]['largely_recommended']) {
-					for(const c of dataset.comparisons[selectedUsername]['largely_recommended'][w]) {
-						graph.addLink(c.pos, c.neg)
-					}
-				}
-
-				// Update stats
-				document.getElementById("stt_nb_videos").innerText = dataset.individualScores[selectedUsername].length
-				document.getElementById("stt_comparisons").innerText = graph.data.links.length
-
-				// connected components
-				const gm = {}
-				graph.data.groups.forEach(g => gm[g.length] = (gm[g.length] || 0) + 1)
-				const gs = Object.keys(gm)
-				gs.sort((a,b)=>+a<+b?1:-1)
-				document.getElementById("stt_connected_components").innerText = gs.map(size=>'' + size +(gm[size] > 1 ? `(x${gm[size]})` : '')).join(', ')
-
-				// Candidates (WIP)
-				const candidates = graph.suggestComparison()
-				document.getElementById('stt_candidates').innerHTML = candidates.length
-
-				// Add graph viz to viewport
-				document.getElementById('graph').innerHTML = ''
-				loading.innerText = 'Drawing graph, please wait...'
-				document.getElementById('graph').appendChild(graph.getDiv(() => {
-					userapply.removeAttribute('disabled')
-					usernameinpt.removeAttribute('disabled')
-					loading.innerText = 'Drawing complete.'
-				}))
-			}
-		</script>
+		<!-- Main (load in last) -->
+		<script src="src/js/Entangler.js"></script>
+		<link rel="stylesheet" href="src/css/main.css">
 	</head>
-	<body>
+	<body onload="onPageLoad()">
 		<div id="header">
 			<div class="hf">
 				<h1>Tournesol Entangler</h1>
 				<div>
 					Dataset:
-					<input type="file" id="datasetzip" accept=".zip" onchange="onSetDatasetZip()"/>
+					<input type="file" id="datasetzip" accept=".zip" value="" onchange="onSetDatasetZip()"/>
 				</div>
 				<div>User: <input type="text" id="username"/><button id="userapply" onclick="onApplyUsername()">Apply</button></div>
 			</div>
 		</div>
 		<div id="content">
-			<div id="graph"></div>
-			<div id="stats">
-				<div class="debugging"><span id="loading_status">IDLE (Please set Dataset file, pick a username, and then click on Apply)</span></div>
+			<div class="graphBlock">
+				<div id="loading_status" class="status">Import tournesol dataset to start</div>
+				<div id="graph"></div>
+			</div>
+			<div class="stats">
+				<h1>Statistics</h1>
 				<div>Public videos: <span id="stt_nb_videos">0</span></div>
 				<div>Public comparisons: <span id="stt_comparisons">0</span></div>
 				<div>Connected components: <span id="stt_connected_components">0</span></div>
-				<div>Candidates for comparisons suggestions: <span id="stt_candidates">0</span></div>
+				<div>Candidates for suggestions: <span id="stt_candidates">0</span></div>
 			</div>
 		</div>
 		<div id="footer">
 			<div class="hf">
-				<span>Build 2024-11-05 - INDEV VERSION (= Contains bugs)</span>
+				<span>Build 2024-11-06 - INDEV VERSION</span>
 				<span>by @NatNgs</span>
 				<a href="https://tournesol.app/about">About Tournesol.app</a>
 			</div>
