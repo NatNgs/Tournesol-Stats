@@ -39,4 +39,5 @@ def save_json_gz(filename:str, data:any) -> str:
 				separators=(',',':'),
 				ensure_ascii=True
 			)
-			# print('Saved file', os.path.realpath(file.name))
+			return os.path.realpath(file.name)
+	return None

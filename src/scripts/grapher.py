@@ -8,7 +8,7 @@ import networkx as nx
 import time
 
 from model.comparisons import ComparisonFile, ComparisonLine
-from model.youtube_api import Video, YTData
+from model.youtube_api import YTVideo, YTData
 from scripts.nxlayouts import radialized_layout
 from scripts.force_directed_graph import ForceLayout
 
@@ -53,7 +53,7 @@ def build_graph(input_dir: str, target_user: str):
 
 
 
-def add_recommended_nodes(graph: nx.Graph, videos: dict[str, Video]):
+def add_recommended_nodes(graph: nx.Graph, videos: dict[str, YTVideo]):
 	# Keep only nodes compared by me
 	keep_nodes = set()
 	for edge in graph.edges.data():
@@ -167,7 +167,7 @@ def optimize_graph_pos(graph: nx.Graph, pos: dict, max_duration: int):
 	return gen.get_pos()
 
 
-def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, Video], filename: str):
+def draw_graph_to_file(graph: nx.Graph, pos: dict, videos: dict[str, YTVideo], filename: str):
 	print('Drawing', graph)
 
 	def _prepare_image():
