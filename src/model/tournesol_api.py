@@ -201,7 +201,6 @@ class TournesolAPI:
 			now_w.year > cached_w.year
 			or (now_w.year == cached_w.year and (now_w.week > cached_w.week or (
 					now_w.week == cached_w.week and now_w.weekday < cached_w.weekday)))):
-			# TODO: Only call refresh on recent videos (depending on all/videos_cached date)
 			self.getVideos(saveCache=True, params={'unsafe': 'true'})
 			if saveCache:
 				self.cache['all/videos_cached'] = timestamp()
