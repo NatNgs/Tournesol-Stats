@@ -6,6 +6,10 @@ data/
 output/
 local/
 
+####################
+## IDE EXCLUDIONS ##
+####################
+.vscode/
 
 #######################
 ## PYTHON EXCLUSIONS ##
