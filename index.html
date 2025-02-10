@@ -30,19 +30,30 @@
 				<div id="loading_status" class="status">Import tournesol dataset to start</div>
 				<div id="graph"></div>
 			</div>
+			<div class="actions">
+				<button onclick="showFullGraph()">Draw graph (fast)</button><br/>
+				<button onclick="showProgressiveFullGraph()">Draw graph progressively</button><br/>
+				<button onclick="alert('Not yet implemented')">Graph around a specific video</button><br/>
+				<button onclick="alert('Not yet implemented')">Suggest comparisons</button>
+			</div>
 			<div class="stats">
 				<h1>Statistics</h1>
-				<div>Public videos: <span id="stt_nb_videos">0</span></div>
-				<div>Public comparisons: <span id="stt_comparisons">0</span></div>
-				<div>Connected components: <span id="stt_connected_components">0</span></div>
-				<div>Candidates for suggestions: <span id="stt_candidates">0</span></div>
+				<div>Public videos: <span id="stt_nb_videos">?</span></div>
+				<div>Public comparisons: <span id="stt_comparisons">?</span></div>
+				<div>Connected components: <span id="stt_connected_components">?</span></div>
+				<div>Suggested comparison: <span id="stt_candidates">?</span></div>
 			</div>
 		</div>
 		<div id="footer">
 			<div class="hf">
-				<span>Build 2024-11-06 - INDEV VERSION</span>
-				<span>by @NatNgs</span>
-				<a href="https://tournesol.app/about">About Tournesol.app</a>
+				<span>Build 2025-02-10 - INDEV VERSION</span>
+				<span>
+					by NatNgs
+					<a href="https://tooting.ch/@natngs" target="_blank" rel="noopener noreferrer"><img src="resources/img/mastodon.svg"/></a>
+					<a href="https://github.com/natngs" target="_blank" rel="noopener noreferrer"><img src="resources/img/github.svg"/></a>
+					<a href="https://tournesol.app/users/NatNgs/recommendations" target="_blank" rel="noopener noreferrer">🌻</a>
+				</span>
+				<a href="https://tournesol.app/about" target="_blank" rel="noopener noreferrer">About Tournesol.app</a>
 			</div>
 		</div>
 	</body>

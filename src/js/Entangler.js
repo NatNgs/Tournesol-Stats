@@ -52,34 +52,126 @@ function onSetDatasetZip() {
 	}
 }
 
+let currentSelectedUsername = null
 function onApplyUsername() {
-	const selectedUsername = HTML_ELMS.usernameinpt.value.trim()
-	if(!selectedUsername) return // No username set
+	currentSelectedUsername = HTML_ELMS.usernameinpt.value.trim()
+	if(!currentSelectedUsername) return // No username set
 	if(!Object.keys(dataset.comparisons).length) return // Dataset not loaded yet
-	if(!(selectedUsername in dataset.comparisons)) {
+	if(!(currentSelectedUsername in dataset.comparisons)) {
 		setStatus('error', 'User not found (username is case sensitive)')
 		return
 	}
 
-	// Show loading
+	// Compute simple stats & display them
+	document.getElementById("stt_nb_videos").innerText = Object.keys(dataset.individualScores[currentSelectedUsername]).length
+	document.getElementById("stt_comparisons").innerText = Object.values(dataset.comparisons[currentSelectedUsername]['largely_recommended']).map(w => w.length).reduce((a,b)=>a+b,0)
+	document.getElementById("stt_connected_components").innerText = '?'
+	document.getElementById('stt_candidates').innerHTML = '?'
+	setStatus('success', 'Loaded user data: ' + currentSelectedUsername.replaceAll('<', '&lt;'))
+}
+
+
+function makeSuggestions() {
 	setStatus('working', 'Computing user data...')
-	HTML_ELMS.userapply.setAttribute('disabled', 'disabled')
-	HTML_ELMS.usernameinpt.setAttribute('disabled', 'disabled')
+	const graph = new TnslGraph(dataset)
 
-	// Prepare graph
-	setTimeout(() => {
-		const graph = new TnslGraph(dataset)
+}
 
-		for(const w in dataset.comparisons[selectedUsername]['largely_recommended']) {
-			for(const c of dataset.comparisons[selectedUsername]['largely_recommended'][w]) {
-				graph.addLink(c.pos, c.neg)
-			}
+// // // Graph modes
+
+async function showProgressiveFullGraph() {
+	if(!dataset || !currentSelectedUsername) {
+		return alert("Progressive graph requires to select dataset and a user")
+	}
+	if(curr_status == 'working') {
+		return alert("Please wait for current task, or refresh the page")
+	}
+
+	// Show loading
+	const graph = new TnslGraph(dataset)
+
+	await new Promise((resolve)=>{
+		const weeks = Object.keys(dataset.comparisons[currentSelectedUsername]['largely_recommended'])
+		weeks.sort()
+		// Add first week links
+		let currW = weeks.shift()
+		setStatus('working', 'Drawing comparisons... (' + currW + ')')
+		for(const c of dataset.comparisons[currentSelectedUsername]['largely_recommended'][currW]) {
+			graph.addLink(c.pos, c.neg, c.score/(c.score_max || 10))
 		}
 
-		// Update stats
-		document.getElementById("stt_nb_videos").innerText = Object.keys(dataset.individualScores[selectedUsername]).length
-		document.getElementById("stt_comparisons").innerText = graph.data.links.length
+		const _updateStats = () => {
+			// connected components
+			const gm = {}
+			graph.data.groups.forEach(g => gm[g.length] = (gm[g.length] || 0) + 1)
+			const gs = Object.keys(gm)
+			gs.sort((a,b)=>+a<+b?1:-1)
+			document.getElementById("stt_connected_components").innerText = gs.map(size=>'' + size +(gm[size] > 1 ? `(x${gm[size]})` : '')).join(', ')
+		}
+		_updateStats()
 
+		// Add graph viz to viewport
+		document.getElementById('graph').innerHTML = ''
+
+		const zone = document.getElementById('graph')
+		const _onEnd = () => {
+			if(weeks.length) {
+				currW = weeks.shift()
+				setStatus('working', 'Optimizing graph... (' + currW + ')')
+				for(const c of dataset.comparisons[currentSelectedUsername]['largely_recommended'][currW]) {
+					graph.addLink(c.pos, c.neg, c.score/(c.score_max || 10))
+				}
+				zone.innerHTML = ''
+				zone.appendChild(graph.makeD3(_onEnd))
+
+				_updateStats()
+				return
+			}
+
+			HTML_ELMS.userapply.removeAttribute('disabled')
+			HTML_ELMS.usernameinpt.removeAttribute('disabled')
+			setStatus('success', 'Drawing complete')
+
+			// Candidates
+			_updateStats()
+			const suggested = graph.suggestComparisons()
+			if(suggested.length)
+				document.getElementById('stt_candidates').innerHTML = `<a target="_blank" rel="noopener noreferrer" href="https://tournesol.app/comparison?uidA=yt:${suggested[0][0].id}&uidB=yt:${suggested[0][1].id}">Compare on Tournesol</a>`
+			else
+				document.getElementById('stt_candidates').innerHTML = 'None'
+			console.log(suggested)
+		}
+		zone.appendChild(graph.makeD3(_onEnd))
+
+		setTimeout(resolve)
+	})
+}
+
+async function showFullGraph() {
+	if(!dataset || !currentSelectedUsername) {
+		return alert("Full graph requires to select dataset and a user")
+	}
+	if(curr_status == 'working') {
+		return alert("Please wait for current task, or refresh the page")
+	}
+
+	// Show loading
+	const graph = new TnslGraph(dataset)
+
+	const weeks = Object.keys(dataset.comparisons[currentSelectedUsername]['largely_recommended'])
+	weeks.sort()
+	// Add first week links
+	for(const w of weeks) {
+		setStatus('working', 'Computing user data (' + w + ')...')
+		for(const c of dataset.comparisons[currentSelectedUsername]['largely_recommended'][w]) {
+			await new Promise((resolve)=>{
+				graph.addLink(c.pos, c.neg, c.score/(c.score_max || 10))
+				setTimeout(resolve)
+			})
+		}
+	}
+
+	await new Promise((resolve)=>{
 		// connected components
 		const gm = {}
 		graph.data.groups.forEach(g => gm[g.length] = (gm[g.length] || 0) + 1)
@@ -87,17 +179,26 @@ function onApplyUsername() {
 		gs.sort((a,b)=>+a<+b?1:-1)
 		document.getElementById("stt_connected_components").innerText = gs.map(size=>'' + size +(gm[size] > 1 ? `(x${gm[size]})` : '')).join(', ')
 
-		// Candidates (WIP)
-		const candidates = graph.suggestComparison()
-		document.getElementById('stt_candidates').innerHTML = candidates.length
-
 		// Add graph viz to viewport
 		document.getElementById('graph').innerHTML = ''
-		setStatus('working', 'Optimizing graph...')
-		document.getElementById('graph').appendChild(graph.getDiv(() => {
+		setStatus('working', 'Drawing comparisons...')
+
+		const zone = document.getElementById('graph')
+		const _onEnd = () => {
 			HTML_ELMS.userapply.removeAttribute('disabled')
 			HTML_ELMS.usernameinpt.removeAttribute('disabled')
 			setStatus('success', 'Drawing complete')
-		}))
+		}
+		zone.appendChild(graph.makeD3(_onEnd))
+
+		// Candidates
+		const suggested = graph.suggestComparisons()
+		if(suggested.length)
+			document.getElementById('stt_candidates').innerHTML = `<a target="_blank" rel="noopener noreferrer" href="https://tournesol.app/comparison?uidA=yt:${suggested[0][0].id}&uidB=yt:${suggested[0][1].id}">Compare on Tournesol</a>`
+		else
+			document.getElementById('stt_candidates').innerHTML = 'None'
+		console.log(suggested)
+
+		setTimeout(resolve)
 	})
 }

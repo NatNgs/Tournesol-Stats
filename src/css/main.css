@@ -43,7 +43,7 @@ h1 {
 	font-size: 1.5em;
 	font-weight: 700;
 }
-a {
+#footer a {
 	color: white;
 }
 
@@ -79,6 +79,13 @@ a {
 	#content {
 		flex-direction: column;
 	}
+}
+
+#actions {
+	flex: 1;
+}
+#actions > button {
+	display: block;
 }
 
 #stats {
