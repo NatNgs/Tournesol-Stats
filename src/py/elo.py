@@ -3,7 +3,7 @@ import math
 import random
 import time
 from model.comparisons import ComparisonFile, ComparisonLine
-from model.youtube_api import YTData
+from dao.youtube_api import YTData
 from scripts.elo import updateRating
 
 def compute_elo_ranking(cmpFile:ComparisonFile, YTDATA: YTData, user: str):

@@ -8,7 +8,7 @@ import networkx as nx
 import time
 
 from model.comparisons import ComparisonFile, ComparisonLine
-from model.youtube_api import YTVideo, YTData
+from dao.youtube_api import YTVideo, YTData
 from scripts.nxlayouts import radialized_layout
 from scripts.force_directed_graph import ForceLayout
 

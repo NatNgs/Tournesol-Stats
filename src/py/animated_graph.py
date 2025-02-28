@@ -7,7 +7,7 @@ import os
 from model.individualcriteriascores import IndividualCriteriaScoresFile
 from model.comparisons import ComparisonFile, ComparisonLine
 from scripts.force_directed_graph import ForceLayout
-from model.youtube_api import YTData
+from dao.youtube_api import YTData
 from matplotlib import pyplot as plt
 from datetime import datetime
 

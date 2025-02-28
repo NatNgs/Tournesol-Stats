@@ -5,7 +5,7 @@ from dateutil.parser import isoparse
 import math
 import pytz
 from model.comparisons import ComparisonFile, ComparisonLine
-from model.youtube_api import YTData
+from dao.youtube_api import YTData
 from model.collectivecriteriascores import CollectiveCriteriaScoresFile
 from model.individualcriteriascores import IndividualCriteriaScoresFile
 

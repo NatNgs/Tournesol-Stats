@@ -2,7 +2,6 @@ from __future__ import annotations
 import os
 import math
 import time
-from typing import Generator, Sequence
 import pandas as pd
 import datetime
 import requests

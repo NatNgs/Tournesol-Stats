@@ -2,7 +2,7 @@ import sys
 from model.comparisons import ComparisonFile, ComparisonLine
 import networkx as nx
 
-from model.youtube_api import YTData
+from dao.youtube_api import YTData
 
 def recom(user: str, cmp_file: ComparisonFile, langs: set[str]):
 	# Separate videos rated by me from others

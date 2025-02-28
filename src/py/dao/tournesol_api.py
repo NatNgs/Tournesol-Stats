@@ -1,5 +1,4 @@
 from __future__ import annotations
-import os
 import time
 import datetime
 import requests
@@ -247,7 +246,10 @@ class TournesolAPI:
 		if saveCache: self.saveCache()
 		return allRes
 
-	def getMyComparedVideos(self, useCache=True, saveCache=True) -> list[VData]:
+	def getMyComparedVideos(self, useCache=True, saveCache=True, onlyCache=False) -> list[VData]:
+		if onlyCache:
+			return self.cache['me/videos'].values()
+
 		out = {} if not useCache else self.cache['me/videos']
 
 		# only call tournesol for last comparisons (until "last_compared_at" is older than cache date)
@@ -270,34 +272,35 @@ class TournesolAPI:
 			self.saveCache()
 		return out.values()
 
-	def getAllMyComparisons(self, useCache=True, saveCache=True) -> list[CData]:
-		def fn_continue(nextRes:list[CData]):
-			# Check if at least one comparison is not yet cached
-			for cdata in nextRes:
-				cid = '\t'.join(sorted([cdata['entity_a']['uid'], cdata['entity_b']['uid']]))
-				if not cid in self.cache['me/comparisons']:
-					return True
-			return False
+	def getAllMyComparisons(self, useCache=True, saveCache=True, onlyCache=False) -> list[CData]:
+		if not onlyCache:
+			def fn_continue(nextRes:list[CData]):
+				# Check if at least one comparison is not yet cached
+				for cdata in nextRes:
+					cid = '\t'.join(sorted([cdata['entity_a']['uid'], cdata['entity_b']['uid']]))
+					if not cid in self.cache['me/comparisons']:
+						return True
+				return False
 
-		allRes:list[CData] = self.callTournesolMulti('users/me/comparisons/videos', fn_continue=fn_continue if useCache else None)
-		# {
-		#	entity_a: {uid:"yt:xxxxxx", ...},
-		#	entity_b: {uid:"yt:xxxxxx", ...},
-		#	criteria_scores: [{criteria: "largely_recommended", score: 10, score_max: 10, weight: 1}],
-		#	...
-		# }
+			allRes:list[CData] = self.callTournesolMulti('users/me/comparisons/videos', fn_continue=fn_continue if useCache else None)
+			# {
+			#	entity_a: {uid:"yt:xxxxxx", ...},
+			#	entity_b: {uid:"yt:xxxxxx", ...},
+			#	criteria_scores: [{criteria: "largely_recommended", score: 10, score_max: 10, weight: 1}],
+			#	...
+			# }
 
-		for cdata in allRes:
-			cdata['entity_a'] = cdata['entity_a']['uid']
-			cdata['entity_b'] = cdata['entity_b']['uid']
-			cdata['cached'] = timestamp()
-			cid = '\t'.join(sorted([cdata['entity_a'], cdata['entity_b']]))
-			self.cache['me/comparisons'][cid] = cdata
-			vdata1 = self.getVData(cdata['entity_a'], useCache=True, saveCache=False)
-			vdata2 = self.getVData(cdata['entity_b'], useCache=True, saveCache=False)
-			cdata['is_public'] = get(vdata1, False, 'individual_rating', 'is_public') and get(vdata2, False, 'individual_rating', 'is_public')
+			for cdata in allRes:
+				cdata['entity_a'] = cdata['entity_a']['uid']
+				cdata['entity_b'] = cdata['entity_b']['uid']
+				cdata['cached'] = timestamp()
+				cid = '\t'.join(sorted([cdata['entity_a'], cdata['entity_b']]))
+				self.cache['me/comparisons'][cid] = cdata
+				vdata1 = self.getVData(cdata['entity_a'], useCache=True, saveCache=False)
+				vdata2 = self.getVData(cdata['entity_b'], useCache=True, saveCache=False)
+				cdata['is_public'] = get(vdata1, False, 'individual_rating', 'is_public') and get(vdata2, False, 'individual_rating', 'is_public')
 
-		if saveCache: self.saveCache()
+			if saveCache: self.saveCache()
 
 		# {
 		#	entity_a: "yt:xxxxx",

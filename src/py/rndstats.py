@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 from model.comparisons import ComparisonFile, ComparisonLine
-from model.youtube_api import YTData
+from dao.youtube_api import YTData
 
 MAX_UPDATE = 2500
 

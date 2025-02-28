@@ -3,7 +3,7 @@ import math
 import time
 import numpy as np
 from model.comparisons import ComparisonFile, ComparisonLine
-from model.youtube_api import YTData
+from dao.youtube_api import YTData
 
 def extractComparisons(cmpFile: ComparisonFile, user: str):
 

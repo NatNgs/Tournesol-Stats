@@ -1,7 +1,7 @@
 import argparse
 import random
 import networkx as nx
-from model.youtube_api import YTData
+from dao.youtube_api import YTData
 
 import scripts.grapher as grph
 

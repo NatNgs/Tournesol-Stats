@@ -1,7 +1,7 @@
 import argparse
 from model.collectivecriteriascores import CollectiveCriteriaScoresFile
 from model.comparisons import ComparisonFile, ComparisonLine
-from model.youtube_api import YTData
+from dao.youtube_api import YTData
 from statistics import median
 
 def group_keys(d: dict):
