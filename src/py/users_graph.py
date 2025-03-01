@@ -6,7 +6,7 @@ import argparse
 import colorsys
 import time
 import warnings
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 import numpy as np
 from scripts import svg
 from scripts.force_directed_graph import ForceLayout

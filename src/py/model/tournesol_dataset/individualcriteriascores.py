@@ -1,3 +1,4 @@
+import zipfile
 from typing import Callable, Iterable
 
 class ICSLine:
@@ -17,22 +18,22 @@ class ICSLine:
 
 class IndividualCriteriaScoresFile:
 	def __init__(self, source):
-		self.file_location = source + '/individual_criteria_scores.csv'
+		self.zip = source
 
 	def foreach(self, fn: Callable[[ICSLine], None]):
-		# video,criteria,score,uncertainty
-		cmpFile = open(self.file_location, 'r', encoding='utf-8')
-		# Skip first line (headers)
-		cmpFile.readline()
+		with zipfile.ZipFile(self.zip) as zip_file:
+			with (zipfile.Path(zip_file) / 'individual_criteria_scores.csv').open(mode='r', encoding='utf-8') as cmpFile:
+				# video,criteria,score,uncertainty
 
-		while True:
-			line = cmpFile.readline()
-			# if line is empty, end of file is reached
-			if not line:
-				break
-			fn(ICSLine(line.strip().split(',')))
+				# Skip first line (headers)
+				cmpFile.readline()
 
-		cmpFile.close()
+				while True:
+					line = cmpFile.readline()
+					# if line is empty, end of file is reached
+					if not line:
+						break
+					fn(ICSLine(line.strip().split(',')))
 
 	def get_scores(self, criterion:str=None, users:Iterable[str]=None, vids:Iterable[str]=None) -> dict[str,dict[str,dict[str,tuple[float,float]]]]:
 		"""

@@ -1,8 +1,6 @@
 import argparse
-from datetime import datetime, timedelta
 
-import numpy as np
-from model.collectivecriteriascores import CollectiveCriteriaScoresFile
+from model.tournesol_dataset.collectivecriteriascores import CollectiveCriteriaScoresFile
 from dao.youtube_api import YTData
 
 

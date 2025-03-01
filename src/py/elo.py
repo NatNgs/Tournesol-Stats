@@ -2,7 +2,7 @@ import argparse
 import math
 import random
 import time
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 from dao.youtube_api import YTData
 from scripts.elo import updateRating
 

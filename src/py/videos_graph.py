@@ -5,9 +5,9 @@ import argparse
 import colorsys
 import time
 import warnings
-from model.collectivecriteriascores import CollectiveCriteriaScoresFile
-from model.individualcriteriascores import IndividualCriteriaScoresFile
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.collectivecriteriascores import CollectiveCriteriaScoresFile
+from model.tournesol_dataset.individualcriteriascores import IndividualCriteriaScoresFile
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 from scripts import svg
 from scripts.nxlayouts import radialized_layout
 

@@ -1,7 +1,7 @@
 import sys
 import time
 import numpy as np
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 import scripts.data_fetcher as data_fetcher
 
 def findUsersWeights(cmpFile: ComparisonFile):

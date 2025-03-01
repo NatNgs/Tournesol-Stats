@@ -4,8 +4,8 @@ import networkx as nx
 import numpy as np
 import math
 import os
-from model.individualcriteriascores import IndividualCriteriaScoresFile
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.individualcriteriascores import IndividualCriteriaScoresFile
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 from scripts.force_directed_graph import ForceLayout
 from dao.youtube_api import YTData
 from matplotlib import pyplot as plt

@@ -2,7 +2,7 @@ import argparse
 import math
 from datetime import datetime
 import numpy as np
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 from dao.youtube_api import YTData
 
 def extractComparisons(cmpFile: ComparisonFile, user: str):

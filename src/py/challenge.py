@@ -4,10 +4,10 @@ from dateutil.parser import isoparse
 
 import math
 import pytz
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 from dao.youtube_api import YTData
-from model.collectivecriteriascores import CollectiveCriteriaScoresFile
-from model.individualcriteriascores import IndividualCriteriaScoresFile
+from model.tournesol_dataset.collectivecriteriascores import CollectiveCriteriaScoresFile
+from model.tournesol_dataset.individualcriteriascores import IndividualCriteriaScoresFile
 
 MIN_USERS = 2 # If no user specified: Video compared by less than x different users are excluded
 MAX_USERS = 9 # If no user specified: Video compared by more than x different users are excluded

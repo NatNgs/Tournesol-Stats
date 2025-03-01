@@ -1,6 +1,6 @@
 import argparse
-from model.collectivecriteriascores import CollectiveCriteriaScoresFile
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.collectivecriteriascores import CollectiveCriteriaScoresFile
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 from dao.youtube_api import YTData
 from statistics import median
 

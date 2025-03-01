@@ -2,7 +2,7 @@ import argparse
 from datetime import datetime, timedelta
 
 import numpy as np
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 from dao.youtube_api import YTData
 
 MAX_UPDATE = 2500

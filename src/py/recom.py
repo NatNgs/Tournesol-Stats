@@ -1,5 +1,5 @@
 import sys
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 import networkx as nx
 
 from dao.youtube_api import YTData

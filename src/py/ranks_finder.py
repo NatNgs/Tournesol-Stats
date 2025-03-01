@@ -1,8 +1,5 @@
 import argparse
-import math
-import time
-import numpy as np
-from model.comparisons import ComparisonFile, ComparisonLine
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
 from dao.youtube_api import YTData
 
 def extractComparisons(cmpFile: ComparisonFile, user: str):

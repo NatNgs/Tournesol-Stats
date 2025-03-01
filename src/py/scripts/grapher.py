@@ -7,9 +7,8 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import time
 
-from model.comparisons import ComparisonFile, ComparisonLine
-from dao.youtube_api import YTVideo, YTData
-from scripts.nxlayouts import radialized_layout
+from model.tournesol_dataset.comparisons import ComparisonFile, ComparisonLine
+from dao.youtube_api import YTVideo
 from scripts.force_directed_graph import ForceLayout
 
 matplotlib.use("svg")

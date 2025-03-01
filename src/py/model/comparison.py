@@ -1,4 +1,4 @@
-from model.users import TournesolUser
+from model.tournesol_dataset.users import TournesolUser
 from model.video import Video
 
 class Comparison:
