@@ -69,6 +69,24 @@ h1 {
 	flex: 1;
 	border-radius: .5em;
 }
+.vid_node {
+	cursor: grab;
+}
+.vid_node:active {
+	cursor: grabbing;
+}
+
+div.tooltip {
+	position: absolute;
+	text-align: center;
+	padding: .1rem;
+	background: #FFF;
+	color: #333;
+	border: 1px solid #333;
+	border-radius: 2px;
+	pointer-events: none;
+}
+
 
 @media (max-width: 90vh) {
 	.graphBlock {

@@ -114,6 +114,9 @@ async function showProgressiveFullGraph() {
 		document.getElementById('graph').innerHTML = ''
 
 		const zone = document.getElementById('graph')
+		const _onDrawStart = () => {
+			setStatus('working', 'Drawing...')
+		}
 		const _onEnd = () => {
 			if(weeks.length) {
 				currW = weeks.shift()
@@ -141,7 +144,7 @@ async function showProgressiveFullGraph() {
 				document.getElementById('stt_candidates').innerHTML = 'None'
 			console.log(suggested)
 		}
-		zone.appendChild(graph.makeD3(_onEnd))
+		zone.appendChild(graph.makeD3(_onDrawStart,_onEnd))
 
 		setTimeout(resolve)
 	})
@@ -163,12 +166,12 @@ async function showFullGraph() {
 	// Add first week links
 	for(const w of weeks) {
 		setStatus('working', 'Computing user data (' + w + ')...')
-		for(const c of dataset.comparisons[currentSelectedUsername]['largely_recommended'][w]) {
-			await new Promise((resolve)=>{
+		await new Promise((resolve)=>{
+			for(const c of dataset.comparisons[currentSelectedUsername]['largely_recommended'][w]) {
 				graph.addLink(c.pos, c.neg, c.score/(c.score_max || 10))
-				setTimeout(resolve)
-			})
-		}
+			}
+			setTimeout(resolve)
+		})
 	}
 
 	await new Promise((resolve)=>{
@@ -181,15 +184,17 @@ async function showFullGraph() {
 
 		// Add graph viz to viewport
 		document.getElementById('graph').innerHTML = ''
-		setStatus('working', 'Drawing comparisons...')
 
 		const zone = document.getElementById('graph')
+		const _onDrawStart = () => {
+			setStatus('working', 'Drawing...')
+		}
 		const _onEnd = () => {
 			HTML_ELMS.userapply.removeAttribute('disabled')
 			HTML_ELMS.usernameinpt.removeAttribute('disabled')
 			setStatus('success', 'Drawing complete')
 		}
-		zone.appendChild(graph.makeD3(_onEnd))
+		zone.appendChild(graph.makeD3(_onDrawStart, _onEnd))
 
 		// Candidates
 		const suggested = graph.suggestComparisons()
