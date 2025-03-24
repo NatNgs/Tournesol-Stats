@@ -586,7 +586,7 @@ class YoutubeAPI:
 			raise e
 		return requested_channel
 
-	def get_channels_by_id(self, cids:list[str]) -> dict[str, YTChannel]:
+	def get_channels_by_id(self, cids:list[str], max_cache_refresh:int=100) -> dict[str, YTChannel]:
 		# Get data from cache
 		requested_cdata = {c: self.channels[c] for c in cids if c in self.channels}
 
@@ -597,7 +597,7 @@ class YoutubeAPI:
 			last_fetch = datetime.datetime.fromisoformat(channel.raw['updated'])
 			current = datetime.datetime.now(datetime.timezone.utc)
 			elapsed = (current - last_fetch).days
-			if elapsed > 31:
+			if elapsed > 31 and len(toFetch) < max_cache_refresh:
 				toFetch.append(cid)
 
 		if toFetch:
