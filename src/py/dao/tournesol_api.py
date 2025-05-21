@@ -2,6 +2,7 @@ from __future__ import annotations
 import time
 import datetime
 import requests
+from requests.exceptions import HTTPError
 from typing import Callable
 from utils.save import load_json_gz, save_json_gz
 
@@ -260,9 +261,20 @@ class TournesolAPI:
 	def getVData(self, vid: str, useCache=False, saveCache=True) -> VData:
 		if not useCache or vid not in self.cache['all/videos']:
 			# Try to get individual scores, if not, get public video data only
-			self._cache_vdata(self.call_get(f"users/me/contributor_ratings/videos/{vid}/") or self.call_get(f"/polls/videos/entities/{vid}"), timestamp())
+			got = None
+			if self.jwt:
+				try:
+					got = self.call_get(f"users/me/contributor_ratings/videos/{vid}/")
+				except Exception:
+					print(f"Failed to get users contributor_ratings for {vid}")
+			if not got:
+				got = self.call_get(f"/polls/videos/entities/{vid}")
+			self._cache_vdata(got, timestamp())
 			if saveCache: self.saveCache()
 		return self.cache['all/videos'][vid]
+
+	def prettyPrintVData(self, vid: str, useCache=True, saveCache=False) -> str:
+		return pretty_print_vdata(self.getVData(vid, useCache=useCache, saveCache=saveCache))
 
 	def getMyRateLater(self, saveCache=True) -> list[VData]:
 		def onresult(res: list[VData]) -> bool:
@@ -415,7 +427,7 @@ def pretty_print_vdata(vdata: VData) -> str:
 
 	score = None
 	if 'collective_rating' in vdata and 'tournesol_score' in vdata['collective_rating']:
-		score = f" {vdata['collective_rating']['tournesol_score']:+3.0f}🌻 ({vdata['collective_rating']['n_comparisons']:3d}cmp/{vdata['collective_rating']['n_contributors']:2d}ctr)"
+		score = f" {vdata['collective_rating']['tournesol_score']:+3.0f}🌻 ({vdata['collective_rating']['n_comparisons']:4d}cmp/{vdata['collective_rating']['n_contributors']:3d}ctr)"
 
 	if 'metadata' in vdata['entity'] and 'name' in vdata['entity']['metadata']:
 		chn = vdata['entity']['metadata']['uploader'] or '???'

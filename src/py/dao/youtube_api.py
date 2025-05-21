@@ -1,3 +1,5 @@
+# REQUIRES: pip install google-api-python-client
+
 from __future__ import annotations
 import os
 import math
@@ -8,6 +10,7 @@ import requests
 import googleapiclient.http
 import googleapiclient.discovery
 from utils.save import load_json_gz, save_json_gz
+
 
 API_KEY_LOCATION = os.path.expanduser('~/Documents/YT_API_KEY.txt')
 MAX_FETCH_SIZE = 50
@@ -286,7 +289,9 @@ class YTChannel():
 		return self.raw.get(key, default)
 
 	def __repr__(self):
-		return "<Channel " + (f"{self.handle}" if self.handle else self.id) + (f' "{self.raw['title']}"' if 'title' in self.raw else '') + '>'
+		handle = self.handle if self.handle else self.id
+		title = f" \"{self.raw['title']}\"" if 'title' in self.raw else ''
+		return f"<Channel {handle}{title}>"
 
 	def __str__(self):
 		if 'title' in self.raw:
@@ -593,12 +598,15 @@ class YoutubeAPI:
 		# Requesting missing data
 		toFetch = [c for c in cids if c not in requested_cdata]
 		# Also request channels not updated for a certain time
-		for cid,channel in requested_cdata.items():
+		for cid,channel in sorted(requested_cdata.items(), key=lambda x: x[1].raw['updated']):
 			last_fetch = datetime.datetime.fromisoformat(channel.raw['updated'])
 			current = datetime.datetime.now(datetime.timezone.utc)
 			elapsed = (current - last_fetch).days
-			if elapsed > 31 and len(toFetch) < max_cache_refresh:
-				toFetch.append(cid)
+			if elapsed <= 7:
+				break
+			toFetch.append(cid)
+			if len(toFetch) >= max_cache_refresh:
+				break
 
 		if toFetch:
 			fetched = []
@@ -626,8 +634,8 @@ class YoutubeAPI:
 						self.save(self.autosave, print_log=False)
 
 					print(len(fetched), end=' ')
-				self._update_vid_channel_links()
 				print('.')
+				self._update_vid_channel_links()
 			except Exception as e:
 				print('Fetch failed.')
 				raise e
@@ -705,7 +713,7 @@ class YoutubeAPI:
 
 		return requested_vdata
 
-	def get_channel_videos(self, *, channel:YTChannel=None, channelHandle:str=None) -> dict[str,YTVideo]:
+	def get_channel_videos(self, *, channel:YTChannel=None, channelHandle:str=None, onlyCache:bool=False) -> dict[str,YTVideo]:
 		# Fetch channel data
 		if not channel and not channelHandle:
 			raise ValueError('Either channel or channelHandle must be set')
@@ -721,7 +729,7 @@ class YoutubeAPI:
 			last_fetch = datetime.datetime.fromisoformat(channel.raw['last_fetch_uploads'])
 			current = datetime.datetime.now(tz=datetime.timezone.utc)
 			elapsed = (current - last_fetch).days
-			if elapsed <= 31:
+			if onlyCache or elapsed <= 31:
 				return channel.videos
 
 		try:

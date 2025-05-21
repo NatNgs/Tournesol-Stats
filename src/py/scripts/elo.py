@@ -11,15 +11,13 @@ def scoreToProba(eloA, eloB):
 # d determines whether Player A wins or Player B.
 # If K is positive: Player a wins (and uses K as change factor)
 # If K is negative: Player b wins (and uses -K as change factor)
-def updateEloRating(Ra, Rb, K):
+def updateEloRating(Ra, Rb, K, outcome):
 	# Winning probability of Player B
-	Pb = scoreToProba(Rb, Ra)
-	if K > 0:
-		Ra = Ra + K * Pb
-		Rb = Rb - K * Pb
-	else:
-		Ra = Ra + K * (1-Pb)
-		Rb = Rb - K * (1-Pb)
+	Pa = scoreToProba(Ra, Rb)
+
+	Ra += K * (outcome - Pa)
+	Rb += K * (Pa - outcome)
+
 	return (Ra, Rb)
 
 
@@ -43,3 +41,13 @@ def updateRating(eloA, eloB, outcome, factor):
 		return probaToScore(newProba, eloA+eloB)
 	except ValueError as e:
 		print('##ERROR##', eloA, eloB, outcome, factor, currentProba, ratio, newProba)
+
+
+def compute_elo_rating_outcome(Ra, Rb, K, outcome):
+	# Winning probability of Player B
+	pb_a = scoreToProba(Ra, Rb)
+
+	upd_a = K * (outcome - pb_a)
+	upd_b = K * (pb_a - outcome)
+
+	return (upd_a, upd_b)
