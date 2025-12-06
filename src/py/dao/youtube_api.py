@@ -288,6 +288,9 @@ class YTChannel():
 	def get(self, key, default=None):
 		return self.raw.get(key, default)
 
+	def title(self):
+		return self.raw.get('title', self.handle if self.handle else self.id)
+
 	def __repr__(self):
 		handle = self.handle if self.handle else self.id
 		title = f" \"{self.raw['title']}\"" if 'title' in self.raw else ''
@@ -591,7 +594,7 @@ class YoutubeAPI:
 			raise e
 		return requested_channel
 
-	def get_channels_by_id(self, cids:list[str], max_cache_refresh:int=100) -> dict[str, YTChannel]:
+	def get_channels_by_id(self, cids:list[str], max_cache_refresh:int=100, max_video:int=0) -> dict[str, YTChannel]:
 		# Get data from cache
 		requested_cdata = {c: self.channels[c] for c in cids if c in self.channels}
 
@@ -632,6 +635,8 @@ class YoutubeAPI:
 
 					if self.autosave:
 						self.save(self.autosave, print_log=False)
+					if len(fetched) >= max_video:
+						break
 
 					print(len(fetched), end=' ')
 				print('.')
@@ -660,6 +665,8 @@ class YoutubeAPI:
 		toFetch = [v for v in vids if v not in requested_vdata]
 		# Also request videos not updated for a certain time
 		for vid,video in requested_vdata.items():
+			if len(toFetch) > 0 and len(toFetch) % MAX_FETCH_SIZE == 0:
+				break
 			last_fetch = datetime.datetime.fromisoformat(video.raw['updated'])
 			current = datetime.datetime.now(datetime.timezone.utc)
 			elapsed = (current - last_fetch).days
@@ -718,7 +725,7 @@ class YoutubeAPI:
 		if not channel and not channelHandle:
 			raise ValueError('Either channel or channelHandle must be set')
 		if not channel:
-			channel = self.get_channel(channelHandle)
+			channel = self.get_channel(handle=channelHandle)
 			if not channel:
 				print(f'[YTAPI] get_channel_videos: Channel {channelHandle} not found')
 				return []

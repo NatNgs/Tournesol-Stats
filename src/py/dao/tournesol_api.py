@@ -1,8 +1,8 @@
 from __future__ import annotations
+import os
 import time
 import datetime
 import requests
-from requests.exceptions import HTTPError
 from typing import Callable
 from utils.save import load_json_gz, save_json_gz
 
@@ -23,7 +23,7 @@ from utils.save import load_json_gz, save_json_gz
 				channel_id: "Uabcdefghijklmnopqrstuvw"
 				description: "Youtube video description"
 				is_unlisted: True/False
-				publication_date: "2022-12-31T23:59:59Z"
+				publication_0date: "2022-12-31T23:59:59Z"
 			}
 		},
 		collective_rating: {
@@ -84,7 +84,7 @@ class TournesolAPIDelay:
 		with TournesolAPIDelay(tournesolapi):
 			# call to Tournesol API
 	"""
-	def __init__(self, tournesolapi: TournesolAPI):
+	def __init__(self, tournesolapi: TournesolCommonAPI):
 		self.tournesolapi = tournesolapi
 
 	def __enter__(self):
@@ -96,104 +96,88 @@ class TournesolAPIDelay:
 		self.tournesolapi.last_api_call = time.time()
 
 
-class TournesolAPI:
-	def __init__(self, jwt: str=None, proxy: str=None):
+class TournesolCommonAPI:
+	def __init__(self, cache_dir:str, proxy:str|None=None):
 		self.last_api_call=time.time()
 		self.base_url='https://api.tournesol.app/'
 		self.delay=1.0 # Seconds between call to API
 		self.proxy = proxy
 
-		self.username = None
-
-		self.jwt = None
-		if jwt: # Authenticate
-			self.jwt = jwt.strip()
-			if not self.jwt.startswith('Bearer '):
-				self.jwt = 'Bearer ' + self.jwt
-
-			userdetails = self.call_get('accounts/profile')
-			assert userdetails
-			assert 'username' in userdetails and userdetails['username']
-			self.username = userdetails['username']
-
-		self.file = None
-		self.cache:dict[str,dict[str,any]] = {
-			'all/videos_cached': "2000-12-31T23:59:59", # When full all/videos was refreshed for the last time ?
-			'all/videos': {}, # "vid": vdata
-
-			'me/videos': [], # vid
-			'me/comparisons': {}, # "entity_a\tentity_b": cdata
-		}
-
+		self.cache_file = os.path.join(cache_dir, 'common.json.gz')
+		self.videos:dict[str,VData] = {} # vid: vdata common part
 
 	#####################
 	## CACHE MANAGMENT ##
 
-	def loadCache(self, cache_file: str):
-		loaded = load_json_gz(cache_file)
-		for k in self.cache:
-			if k in loaded:
-				self.cache[k] = loaded[k]
-		self.file = cache_file
+	def loadCache(self):
+		loaded = load_json_gz(self.cache_file)
+		assert 'common_vdata' in loaded, 'File content structure is not as expected'
+		self.videos = loaded['common_vdata']
 
-	def saveCache(self):
-		assert self.file
-		save_json_gz(self.file, self.cache)
+	def saveCache(self) -> str:
+		print('§', end=' ', flush=True)
+		return save_json_gz(self.cache_file, {
+			'common_vdata': self.videos
+		})
 
-	def _cache_vdata(self, vdata: VData, time: str) -> VData:
+	def _get_from_cache(self, vid:str) -> VData:
+		return self.videos[vid]
+
+	def _cache_vdata(self, vdata:VData, time:str) -> VData:
 		vid = vdata['entity']['uid']
-		vdata['cached'] = time
-		if vid in self.cache['all/videos']:
-			# Merge with cached properties
-			for part in self.cache['all/videos'][vid]:
-				if part not in vdata:
-					vdata[part] = self.cache['all/videos'][vid][part]
-		self.cache['all/videos'][vid] = vdata
-		return vdata
 
+		# Separate common and user-specific data
+		common_part = {}
+		for key,value in vdata.items():
+			if key in {'entity', 'collective_rating'}:
+				common_part[key] = value
+
+		# Update cache
+		if common_part:
+			common_part['cached'] = time
+			self.videos[vid] = common_part
+		return self._get_from_cache(vid)
 
 	################
 	##  API CALLS ##
 
-	def _call(self, method: Callable[[str],any], path: str, body=None):
+	def _call(self, method:Callable[[str],any], path:str, body=None, jwt:str|None=None):
 		if path[0] == '/': # Cut leading slash in path
 			path = path[1:]
 
+		response: requests.Response = None
 		with TournesolAPIDelay(self):
-			proxies = {
-				'http': self.proxy,
-				'https': self.proxy,
-			} if self.proxy is not None else None
-
 			response: requests.Response = method(self.base_url + path,
-				headers={'Authorization': self.jwt} if self.jwt else None,
+				headers={'Authorization': jwt} if jwt else None,
 				json=body,
 				timeout=(5,10),
-				proxies=proxies,
+				proxies={'http': self.proxy,'https': self.proxy} if self.proxy is not None else None,
 			)
-			response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
-			if not response.content:
-				return None
-			return response.json()
+		response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
+		if not response.content:
+			return None
+		return response.json()
 
-	def call_get(self, path: str):
-		return self._call(requests.get, path)
-	def call_post(self, path: str, body: dict[str,any]):
-		return self._call(requests.post, path, body)
-	def call_patch(self, path: str, body: dict[str,any]):
-		return self._call(requests.patch, path, body)
-	def call_put(self, path: str, body: dict[str,any]):
-		return self._call(requests.put, path, body)
-	def call_delete(self, path: str, body: dict[str,any]=None):
-		self._call(requests.delete, path, body)
+	def call_get(self, path:str, jwt:str|None=None):
+		return self._call(requests.get, path, jwt=jwt)
+	def call_post(self, path:str, body:dict[str,any], jwt:str|None=None):
+		return self._call(requests.post, path, body, jwt=jwt)
+	def call_patch(self, path:str, body:dict[str,any], jwt:str|None=None):
+		return self._call(requests.patch, path, body, jwt=jwt)
+	def call_put(self, path:str, body:dict[str,any], jwt:str|None=None):
+		return self._call(requests.put, path, body, jwt=jwt)
+	def call_delete(self, path:str, body:dict[str,any]=None, jwt:str|None=None):
+		self._call(requests.delete, path, body, jwt=jwt)
+	def call_options(self, path:str, body:dict[str,any]=None, jwt:str|None=None):
+		self._call(requests.options, path, body, jwt=jwt)
 
-	def callTournesolMulti(self, path: str, args: str=None, start: int=0, end: int=0, fn_continue: Callable[[list[any]], bool]=None) -> list[any]:
+	def callTournesolMulti(self, path:str, args:str=None, start:int=0, end:int=0, fn_continue:Callable[[list[any]],bool]=None, jwt:str|None=None) -> list[any]:
 		LIMIT=1000
 		URL=f'{path}?limit={LIMIT}' + (('&' + args) if args else '')
 		offset=start
 
-		print(f"Calling TournesolAPI {path}...", end=' ')
-		rs = self.call_get(URL + f'&offset={offset}')
+		print(f"[TNSL API] {path}...", end=' ')
+		rs = self.call_get(URL + f'&offset={offset}', jwt=jwt)
 		if not 'count' in rs or not 'results' in rs:
 			print('##### ERROR #####')
 			raise Exception(URL, rs)
@@ -206,7 +190,7 @@ class TournesolAPI:
 		if fn_continue is None or fn_continue(last_res):
 			while len(allRes) < total and (end <= 0 or offset < end):
 				offset += LIMIT
-				rs = self.call_get(URL + f'&offset={offset}')
+				rs = self.call_get(URL + f'&offset={offset}', jwt=jwt)
 				total = rs['count']
 				last_res = rs['results']
 				allRes += last_res
@@ -217,9 +201,24 @@ class TournesolAPI:
 
 		return allRes
 
+	#############
+	##  VDATA  ##
 
-	###########
-	## VDATA ##
+	def getVData(self, vid:str, useCache=False, saveCache=False) -> VData:
+		if vid[:3] != 'yt:':
+			vid = 'yt:' + vid
+		if len(vid) != 14:
+			raise Exception('Wrong video id: ' + vid)
+
+		if not useCache or vid not in self.videos:
+			try:
+				got = self.call_get(f"/polls/videos/entities/{vid}")
+			except Exception:
+				raise Exception(f"Could not fetch video {vid}")
+			self._cache_vdata(got, timestamp())
+			if saveCache: self.saveCache()
+		return self._get_from_cache(vid)
+
 
 	def getVideosCount(self, *, params: dict[str,str]) -> int:
 		# Do like getVideos but with limit = 1, and return response.count instead of response.results
@@ -243,128 +242,205 @@ class TournesolAPI:
 		)
 		return {vdata['entity']['uid']:vdata for vdata in allRes}
 
-	def getAllVideos(self, onlyCache=False, useCache=True, saveCache=True) -> list[VData]:
+	def prettyPrintVData(self, vid: str|VData, useCache=True, saveCache=False) -> str:
+		if isinstance(vid, str):
+			return _pretty_print_vdata(self.getVData(vid, useCache=useCache, saveCache=saveCache))
+		else:
+			return _pretty_print_vdata(vid)
+
+	def getChannelVideos(self, channelTitle: str, onlyCache=False) -> dict[str, VData]:
 		if not onlyCache:
-			now_w = datetime.datetime.now(tz=datetime.timezone.utc).isocalendar() # (year, week_num (1-52), week_day (Mon=1, Sun=7))
-			cached_w = datetime.datetime.fromisoformat(self.cache['all/videos_cached']).isocalendar()
-			# Refresh cache if we are after the last week data was cached
-			if not useCache or (
-				now_w.year > cached_w.year
-				or (now_w.year == cached_w.year and (now_w.week > cached_w.week or (
-						now_w.week == cached_w.week and now_w.weekday < cached_w.weekday)))):
-				self.getVideos(saveCache=True, params={'unsafe': 'true'})
-				self.cache['all/videos_cached'] = timestamp()
-				if saveCache: self.saveCache()
-		return list(self.cache['all/videos'].values())
+			allRes = self.callTournesolMulti('/polls/videos/recommendations/', args=f"unsafe=true&exclude_compared_entities=false&metadata[uploader]={channelTitle}")
+
+			tmstp = timestamp()
+			return {vdata['entity']['uid']:self._cache_vdata(vdata, tmstp) for vdata in allRes}
+
+		# From cache
+		return {vdata['entity']['uid']:vdata for vdata in self.videos.values() if get(vdata, None, 'entity', 'metadata', 'uploader') == channelTitle}
 
 
-	def getVData(self, vid: str, useCache=False, saveCache=True) -> VData:
-		if not useCache or vid not in self.cache['all/videos']:
+class TournesolUserAPI:
+	def __init__(self, commonApi:TournesolCommonAPI, jwt:str, cache_dir:str|None=None):
+		self.common = commonApi
+
+		# Authentication
+		self.username = None
+		self.jwt = jwt.strip()
+		if not self.jwt.startswith('Bearer '):
+			self.jwt = 'Bearer ' + self.jwt
+
+		userdetails = self.common.call_get('accounts/profile', jwt=self.jwt)
+		assert userdetails
+		assert 'username' in userdetails and userdetails['username']
+		self.username = userdetails['username']
+
+		# Cache
+		if not cache_dir:
+			cache_dir = os.path.dirname(commonApi.cache_file)
+		self.cache_file = os.path.join(cache_dir, 'users', f'{self.username}.json.gz')
+		self.videos:dict[str,VData] = {} # vid: vdata user part
+		self.comparisons:dict[str,CData] = {} # "entity_a\tentity_b": cdata
+
+	#####################
+	## CACHE MANAGMENT ##
+
+	def loadCache(self):
+		if not self.common.videos:
+			self.common.loadCache()
+		loaded = load_json_gz(self.cache_file)
+		assert 'videos' in loaded and 'comparisons' in loaded, 'File content structure is not as expected'
+		self.videos = loaded['videos']
+		self.comparisons = loaded['comparisons']
+
+	def saveCache(self) -> str:
+		self.common.saveCache()
+		print('¤', end=' ', flush=True)
+		return save_json_gz(self.cache_file, {
+			'videos': self.videos,
+			'comparisons': self.comparisons,
+		})
+
+	def _get_from_cache(self, vid:str) -> VData:
+		res = self.common._get_from_cache(vid)
+		if vid in self.videos:
+			res.update(self.videos[vid])
+		return res
+
+	def _cache_vdata(self, vdata: VData, time: str) -> VData:
+		vid = vdata['entity']['uid']
+		common_part = self.common._cache_vdata(vdata, time)
+
+		# Separate common and user-specific data
+		user_part = {}
+		for key,value in vdata.items():
+			if key not in common_part:
+				user_part[key] = value
+
+		# Update cache
+		if user_part:
+			user_part['cached'] = time
+			self.videos[vid] = user_part
+		return self._get_from_cache(vid)
+
+	#############
+	##  VDATA  ##
+
+	def getVData(self, vid:str, useCache=False, saveCache=False, postIfMissing=True) -> VData:
+		if vid[:3] != 'yt:':
+			vid = 'yt:' + vid
+		if len(vid) != 14:
+			raise Exception('Wrong video id: ' + vid)
+
+		if not useCache or vid not in self.videos:
 			# Try to get individual scores, if not, get public video data only
-			got = None
-			if self.jwt:
-				try:
-					got = self.call_get(f"users/me/contributor_ratings/videos/{vid}/")
-				except Exception:
-					print(f"Failed to get users contributor_ratings for {vid}")
-			if not got:
-				got = self.call_get(f"/polls/videos/entities/{vid}")
-			self._cache_vdata(got, timestamp())
-			if saveCache: self.saveCache()
-		return self.cache['all/videos'][vid]
+			try:
+				got = self.common.call_get(f"users/me/contributor_ratings/videos/{vid}/", jwt=self.jwt)
+				got = self._cache_vdata(got, timestamp())
+				if saveCache: self.saveCache()
+				return got
+			except Exception:
+				pass
 
-	def prettyPrintVData(self, vid: str, useCache=True, saveCache=False) -> str:
-		return pretty_print_vdata(self.getVData(vid, useCache=useCache, saveCache=saveCache))
+			try:
+				got = self.common.getVData(vid, useCache, saveCache)
+				if got:
+					return got
+			except:
+				pass
 
-	def getMyRateLater(self, saveCache=True) -> list[VData]:
+			if postIfMissing:
+				# Ask tournesol to fetch the video
+				resp = self.common.call_post(f"/video/", body={'video_id': vid[3:]}, jwt=self.jwt)
+				if 'uid' not in resp:
+					raise Exception(f"Could not fetch video {vid}")
+				return self.common.getVData(vid, useCache, saveCache)
+		return self._get_from_cache(vid)
+
+
+	def getMyRateLater(self, saveCache=False) -> list[VData]:
 		def onresult(res: list[VData]) -> bool:
 			tmstp = timestamp()
 			for vdata in res:
 				self._cache_vdata(vdata, tmstp)
 			if saveCache: self.saveCache()
 			return True
-		return self.callTournesolMulti('users/me/rate_later/videos', fn_continue=onresult)
+		return self.common.callTournesolMulti('users/me/rate_later/videos', fn_continue=onresult, jwt=self.jwt)
 
-	def getMyComparedVideos(self, useCache=True, saveCache=True, onlyCache=False) -> list[VData]:
-		if onlyCache:
-			return list(map(self.cache['all/videos'].get, self.cache['me/videos']))
+	def getMyComparedVideos(self, useCache=True, saveCache=False, onlyCache=False) -> list[VData]:
+		if not onlyCache:
+			vids = set() if not useCache else set(self.videos)
 
-		vids = set() if not useCache else set(self.cache['me/videos'])
+			# only call tournesol for last comparisons (until "last_compared_at" is older than cache date)
+			def check_need_update(res):
+				last = res[-1]['entity']['uid']
+				need_continue = ((last not in vids)
+					or get(res[-1],'2000-00-00T00:00:00Z','individual_rating','last_compared_at') > get(self.videos[last],'2000-00-00T00:00:00Z','individual_rating','last_compared_at')
+				)
 
-		# only call tournesol for last comparisons (until "last_compared_at" is older than cache date)
-		def check_need_update(res):
-			last = res[-1]['entity']['uid']
-			need_continue = ((last not in vids)
-				or get(res[-1],'2000-00-00T00:00:00Z','individual_rating','last_compared_at') > get(self.cache['all/videos'][last],'2000-00-00T00:00:00Z','individual_rating','last_compared_at')
-			)
+				# Update new received videos data
+				tmstp = timestamp()
+				for vdata in res:
+					self._cache_vdata(vdata, tmstp)
 
-			# Update new received videos data
-			tmstp = timestamp()
-			for vdata in res:
-				self._cache_vdata(vdata, tmstp)
-				vids.add(vdata['entity']['uid'])
+				if saveCache: self.saveCache()
 
-			return need_continue
-		self.callTournesolMulti('users/me/contributor_ratings/videos', 'order_by=-last_compared_at', fn_continue=check_need_update)
+				return need_continue
+			self.common.callTournesolMulti('users/me/contributor_ratings/videos', 'order_by=-last_compared_at', fn_continue=check_need_update, jwt=self.jwt)
 
-		self.cache['me/videos'] = sorted(vids)
-		if saveCache: self.saveCache()
-		return list(map(self.cache['all/videos'].get, vids))
+		return [self._get_from_cache(vid) for vid in self.videos]
 
 	def getChannelVideos(self, channelTitle: str, onlyCache=False) -> dict[str, VData]:
+		return self.common.getChannelVideos(channelTitle, onlyCache)
+
+
+	def prettyPrintVData(self, vid: str|VData, useCache=True, saveCache=False) -> str:
+		if isinstance(vid, str):
+			return _pretty_print_vdata(self.getVData(vid, useCache=useCache, saveCache=saveCache))
+		else:
+			return _pretty_print_vdata(vid)
+
+
+	#############
+	##  CDATA  ##
+
+	def getAllMyComparisons(self, useCache=True, saveCache=False, onlyCache=False) -> list[CData]:
+		# TODO: When useCache=False and saveCache=True, remove any comparison present from cache that has not been fetched (update/create the others)
+		out = self.comparisons if useCache else {}
 		if not onlyCache:
-			allRes = self.callTournesolMulti('/polls/videos/recommendations/',
-				args=f"unsafe=true&exclude_compared_entities=false&metadata[uploader]={channelTitle}")
+			def fn_continue(nextRes: list[CData]):
+				tmstp = timestamp()
+				need_continue = not useCache # if useCache=False, force return True to get all data
 
-			tmstp = timestamp()
-			return {vdata['entity']['uid']:self._cache_vdata(vdata, tmstp) for vdata in allRes}
+				for cdata in nextRes:
+					# cdata = {
+					#	entity_a: {uid:"yt:xxxxxx", ...},
+					#	entity_b: {uid:"yt:xxxxxx", ...},
+					#	criteria_scores: [{criteria: "largely_recommended", score: 10, score_max: 10, weight: 1}],
+					#	...
+					# }
+					cdata['entity_a'] = cdata['entity_a']['uid']
+					cdata['entity_b'] = cdata['entity_b']['uid']
+					cid = '\t'.join(sorted([cdata['entity_a'], cdata['entity_b']]))
+					cdata['cached'] = tmstp
+					vdata1 = self.getVData(cdata['entity_a'], useCache=True, saveCache=False)
+					vdata2 = self.getVData(cdata['entity_b'], useCache=True, saveCache=False)
+					cdata['is_public'] = get(vdata1, False, 'individual_rating', 'is_public') and get(vdata2, False, 'individual_rating', 'is_public')
+					# cdata = {
+					#	entity_a: "yt:xxxxx",
+					#	entity_b: "yt:xxxxx",
+					#	criteria_scores: [...],
+					#	...
+					#	is_public: false,
+					#	cached: "2020-12-31T23:59:59Z",
+					# }
 
-		# From cache
-		return {vdata['entity']['uid']:vdata for vdata in self.cache['all/videos'].values() if get(vdata, None, 'entity', 'metadata', 'uploader') == channelTitle}
+					if useCache and cid not in out:
+						need_continue = True # At least one new comparison has been found; will ask to get the next batch
+					out[cid] = cdata
+				if saveCache: self.saveCache()
+				return need_continue
 
-	###########
-	## CDATA ##
-
-	def getAllMyComparisons(self, useCache=True, saveCache=True, onlyCache=False) -> list[CData]:
-		if onlyCache:
-			return list(self.cache['me/comparisons'].values())
-
-		out = self.cache['me/comparisons'] if useCache else {}
-
-		def fn_continue(nextRes: list[CData]):
-			tmstp = timestamp()
-			need_continue = not useCache # if useCache=False, force return True to get all data
-
-			for cdata in nextRes:
-				# cdata = {
-				#	entity_a: {uid:"yt:xxxxxx", ...},
-				#	entity_b: {uid:"yt:xxxxxx", ...},
-				#	criteria_scores: [{criteria: "largely_recommended", score: 10, score_max: 10, weight: 1}],
-				#	...
-				# }
-				cdata['entity_a'] = cdata['entity_a']['uid']
-				cdata['entity_b'] = cdata['entity_b']['uid']
-				cid = '\t'.join(sorted([cdata['entity_a'], cdata['entity_b']]))
-				cdata['cached'] = tmstp
-				vdata1 = self.getVData(cdata['entity_a'], useCache=True, saveCache=False)
-				vdata2 = self.getVData(cdata['entity_b'], useCache=True, saveCache=False)
-				cdata['is_public'] = get(vdata1, False, 'individual_rating', 'is_public') and get(vdata2, False, 'individual_rating', 'is_public')
-				# cdata = {
-				#	entity_a: "yt:xxxxx",
-				#	entity_b: "yt:xxxxx",
-				#	criteria_scores: [...],
-				#	...
-				#	is_public: false,
-				#	cached: "2020-12-31T23:59:59Z",
-				# }
-
-				if useCache and cid not in out: need_continue = True # At least one new comparison has been found; will ask to get the next batch
-				out[cid] = cdata
-
-			return need_continue
-
-		self.callTournesolMulti('users/me/comparisons/videos', fn_continue=fn_continue)
-		if saveCache: self.saveCache()
+			self.common.callTournesolMulti('users/me/comparisons/videos', fn_continue=fn_continue, jwt=self.jwt)
 		return list(out.values())
 
 	def getMyComparisonsWith(self, vid, useCache=True, saveCache=False) -> list[CData]:
@@ -373,12 +449,12 @@ class TournesolAPI:
 
 		if useCache:
 			expected_cmps = get(vdata1, 0, 'individual_rating', 'n_comparisons')
-			cached_cmps = [cdata for cid,cdata in self.cache['me/comparisons'].items() if vid in cid.split('\t')]
+			cached_cmps = [cdata for cid,cdata in self.comparisons.items() if vid in cid.split('\t')]
 			# All comparisons found in cache, no need to fetch API
 			if expected_cmps == len(cached_cmps):
 				return cached_cmps
 
-		allRes = self.callTournesolMulti(f"users/me/comparisons/videos/{vid}/")
+		allRes = self.common.callTournesolMulti(f"users/me/comparisons/videos/{vid}/", jwt=self.jwt)
 		tmstp = timestamp()
 
 		for cdata in allRes:
@@ -386,9 +462,7 @@ class TournesolAPI:
 			cdata['entity_b'] = cdata['entity_b']['uid']
 			cdata['cached'] = tmstp
 			cid = '\t'.join(sorted([cdata['entity_a'], cdata['entity_b']]))
-			vdata2 = self.getVData(cdata['entity_b' if vid == cdata['entity_a'] else 'entity_a'], useCache=True, saveCache=False)
-			cdata['is_public'] = get(vdata1, False, 'individual_rating', 'is_public') and get(vdata2, False, 'individual_rating', 'is_public')
-			self.cache['me/comparisons'][cid] = cdata
+			self.comparisons[cid] = cdata
 
 		if saveCache: self.saveCache()
 		# {
@@ -398,8 +472,39 @@ class TournesolAPI:
 		#	criteria_scores: [...],
 		#	...
 		# }
-		return [cdata for cid,cdata in self.cache['me/comparisons'].items() if vid in cid.split('\t')]
+		return [cdata for cid,cdata in self.comparisons.items() if vid in cid.split('\t')]
 
+	################
+	##  REQUESTS  ##
+
+	def postComparison(self, vid_neg:str, vid_pos:str, criteria_scores:dict[str,int], fake=False):
+		if vid_neg[:3] != 'yt:': vid_neg = 'yt:' + vid_neg
+		if vid_pos[:3] != 'yt:': vid_pos = 'yt:' + vid_pos
+
+		body = {
+			'entity_a': {'uid':vid_neg},
+			'entity_b': {'uid':vid_pos},
+			'criteria_scores':[{
+				'criteria': crit,
+				'score': cmp,
+				'score_max': 10,
+				'weight': 1,
+			} for crit,cmp in criteria_scores.items()],
+			'duration_ms': 0,
+		}
+		if fake:
+			print(body)
+		else:
+			cdata:CData = self.common.call_post('users/me/comparisons/videos', body, jwt=self.jwt)
+			cdata['cached'] = timestamp()
+			self.comparisons['\t'.join(sorted([vid_neg, vid_pos]))] = cdata
+
+	def setVideoAsPrivate(self, vid:str, setToPublic=False):
+		if vid[:3] != 'yt:':
+			vid = 'yt:' + vid[3:]
+
+		vdata:VData = self.common.call_patch(f"users/me/contributor_ratings/videos/{vid}/", {"is_public":setToPublic}, jwt=self.jwt)
+		self._cache_vdata(vdata, timestamp())
 
 #################################
 ##           UTILS             ##
@@ -415,18 +520,22 @@ def get(json: VData, default, *fields):
 			return default
 	return json
 
-def get_individual_score(vdata: VData) -> float:
+def get_individual_score(vdata: VData) -> float|None:
 	arr = [s for s in get(vdata, [], 'individual_rating', 'criteria_scores') if s['criteria'] == 'largely_recommended']
 	return arr[0]['score'] if arr else None
 
-def pretty_print_vdata(vdata: VData) -> str:
+def _pretty_print_vdata(vdata: VData) -> str:
 	if not 'entity' in vdata:
 		return '[???]'
 
 	vid = vdata['entity']['uid']
 
 	score = None
-	if 'collective_rating' in vdata and 'tournesol_score' in vdata['collective_rating']:
+	if ('collective_rating' in vdata
+	 and vdata['collective_rating'] is not None
+	 and 'tournesol_score' in vdata['collective_rating']
+	 and vdata['collective_rating']['tournesol_score'] is not None
+	):
 		score = f" {vdata['collective_rating']['tournesol_score']:+3.0f}🌻 ({vdata['collective_rating']['n_comparisons']:4d}cmp/{vdata['collective_rating']['n_contributors']:3d}ctr)"
 
 	if 'metadata' in vdata['entity'] and 'name' in vdata['entity']['metadata']:

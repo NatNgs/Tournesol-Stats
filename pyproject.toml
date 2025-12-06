@@ -5,7 +5,7 @@ name = "TournesolStats" # Required
 
 # Versions should comply with PEP 440: https://www.python.org/dev/peps/pep-0440/
 # For a discussion on single-sourcing the version, see https://packaging.python.org/guides/single-sourcing-package-version/
-version = "1.1.0" # Required
+version = "1.2.0" # Required
 
 # This is a one-line description or tagline of what your project does. This corresponds to the "Summary" metadata field:
 # https://packaging.python.org/specifications/core-metadata/#summary
@@ -20,7 +20,7 @@ readme = "README.md" # Optional
 # Specify which Python versions you support. In contrast to the 'Programming Language' classifiers above,
 # 'pip install' will check this and refuse to install the project if the version does not match.
 # See https://packaging.python.org/guides/distributing-packages-using-setuptools/#python-requires
-requires-python = ">=3.7"
+requires-python = ">=3.12"
 
 # This is either text indicating the license for the distribution, or a file that contains the license
 # https://packaging.python.org/en/latest/specifications/core-metadata/#license
@@ -51,9 +51,15 @@ classifiers = [] # Optional
 dependencies = [ # Optional
 	"google-api-python-client",
 	"matplotlib",
-	"networkx",
+	"networkx >= 2.5",
 	"scipy",
-	"fa2l"
+	"fa2l",
+	"ipykernel",
+	"pandas",
+	"plotly",
+	"setuptools",
+	"wheel",
+	"nbformat",
 ]
 
 # List additional groups of dependencies here (e.g. development dependencies). Users will be able to install these using the "extras" syntax, for example:
@@ -83,3 +89,10 @@ dependencies = [ # Optional
 # https://pip.pypa.io/en/stable/reference/pip/#pep-517-and-518-support
 requires = ["setuptools>=43.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.uv]
+# Force these versions to bypass dependency check
+override-dependencies = [
+	"fa2l==0.2.0", # https://pypi.org/project/fa2l/#history
+	"networkx>=3.6", # https://pypi.org/project/networkx/#history
+]

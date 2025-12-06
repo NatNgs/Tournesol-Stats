@@ -7,7 +7,7 @@ A collection of tools to visualize and explore the tournesol.app public dataset.
 
 These scripts runs with Python version 3.
 
-Development uses Python version 3.9.5, previous versions may also work (not tested).
+Development uses Python version 3.14, previous versions may also work (not tested).
 
 Some dependencies may be needed to be installed to run the project prior to its execution.
 

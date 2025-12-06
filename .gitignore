@@ -10,6 +10,7 @@ local/
 ## IDE EXCLUDIONS ##
 ####################
 .vscode/
+uv.lock
 
 #######################
 ## PYTHON EXCLUSIONS ##
