@@ -5,6 +5,7 @@ import datetime
 import requests
 from typing import Callable
 from utils.save import load_json_gz, save_json_gz
+from requests.adapters import HTTPAdapter, Retry
 
 # Type
 '''	VData:
@@ -99,7 +100,8 @@ class TournesolAPIDelay:
 class TournesolCommonAPI:
 	def __init__(self, cache_dir:str, proxy:str|None=None):
 		self.last_api_call=time.time()
-		self.base_url='https://api.tournesol.app/'
+		self.protocol='https'
+		self.base_url=f"{self.protocol}://api.tournesol.app/" # need to end with '/'
 		self.delay=1.0 # Seconds between call to API
 		self.proxy = proxy
 
@@ -141,17 +143,31 @@ class TournesolCommonAPI:
 	################
 	##  API CALLS ##
 
-	def _call(self, method:Callable[[str],any], path:str, body=None, jwt:str|None=None):
+	def _call(self, method:str, path:str, body=None, jwt:str|None=None):
 		if path[0] == '/': # Cut leading slash in path
 			path = path[1:]
 
 		response: requests.Response = None
+		retry=Retry(
+			connect=5,
+			redirect=5,
+			status=3,
+			read=2,
+			other=2,
+			backoff_factor=self.delay,
+			allowed_methods=None, # Allow retry on every method
+			status_forcelist=[429, 500, 502, 503, 504],
+		)
 		with TournesolAPIDelay(self):
-			response: requests.Response = method(self.base_url + path,
+			s = requests.Session()
+			s.mount(self.protocol + '://', HTTPAdapter(max_retries=retry))
+			response: requests.Response = getattr(s, method)(self.base_url + path,
 				headers={'Authorization': jwt} if jwt else None,
 				json=body,
-				timeout=(5,10),
-				proxies={'http': self.proxy,'https': self.proxy} if self.proxy is not None else None,
+				proxies=
+					{self.protocol: self.proxy} if self.proxy is not None
+					else None,
+				timeout=(5,10)
 			)
 		response.raise_for_status() # raises HTTPError (exc.response.status_code == 4xx or 5xx)
 		if not response.content:
@@ -159,17 +175,17 @@ class TournesolCommonAPI:
 		return response.json()
 
 	def call_get(self, path:str, jwt:str|None=None):
-		return self._call(requests.get, path, jwt=jwt)
+		return self._call('get', path, jwt=jwt)
 	def call_post(self, path:str, body:dict[str,any], jwt:str|None=None):
-		return self._call(requests.post, path, body, jwt=jwt)
+		return self._call('post', path, body, jwt=jwt)
 	def call_patch(self, path:str, body:dict[str,any], jwt:str|None=None):
-		return self._call(requests.patch, path, body, jwt=jwt)
+		return self._call('patch', path, body, jwt=jwt)
 	def call_put(self, path:str, body:dict[str,any], jwt:str|None=None):
-		return self._call(requests.put, path, body, jwt=jwt)
+		return self._call('put', path, body, jwt=jwt)
 	def call_delete(self, path:str, body:dict[str,any]=None, jwt:str|None=None):
-		self._call(requests.delete, path, body, jwt=jwt)
+		self._call('delete', path, body, jwt=jwt)
 	def call_options(self, path:str, body:dict[str,any]=None, jwt:str|None=None):
-		self._call(requests.options, path, body, jwt=jwt)
+		self._call('options', path, body, jwt=jwt)
 
 	def callTournesolMulti(self, path:str, args:str=None, start:int=0, end:int=0, fn_continue:Callable[[list[any]],bool]=None, jwt:str|None=None) -> list[any]:
 		LIMIT=1000
@@ -478,6 +494,7 @@ class TournesolUserAPI:
 	##  REQUESTS  ##
 
 	def postComparison(self, vid_neg:str, vid_pos:str, criteria_scores:dict[str,int], fake=False):
+		# TODO: try/except if comparison is already existing, and backup to modifyExistingComparison
 		if vid_neg[:3] != 'yt:': vid_neg = 'yt:' + vid_neg
 		if vid_pos[:3] != 'yt:': vid_pos = 'yt:' + vid_pos
 
