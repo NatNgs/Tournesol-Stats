@@ -596,12 +596,12 @@ class YoutubeAPI:
 
 	def get_channels_by_id(self, cids:list[str], max_cache_refresh:int=100, max_video:int=0) -> dict[str, YTChannel]:
 		# Get data from cache
-		requested_cdata = {c: self.channels[c] for c in cids if c in self.channels}
+		cached_cdata = {c: self.channels[c] for c in cids if c in self.channels}
 
 		# Requesting missing data
-		toFetch = [c for c in cids if c not in requested_cdata]
+		toFetch = [c for c in cids if c not in cached_cdata or not 'title' in cached_cdata[c].raw]
 		# Also request channels not updated for a certain time
-		for cid,channel in sorted(requested_cdata.items(), key=lambda x: x[1].raw['updated']):
+		for cid,channel in sorted(cached_cdata.items(), key=lambda x: x[1].raw['updated']):
 			last_fetch = datetime.datetime.fromisoformat(channel.raw['updated'])
 			current = datetime.datetime.now(datetime.timezone.utc)
 			elapsed = (current - last_fetch).days
@@ -630,7 +630,7 @@ class YoutubeAPI:
 						cdata = _cdata_from_ytcdata(ytcdata)
 						cdata['updated'] = nowdate
 						cid = cdata['cid']
-						self.channels[cid] = requested_cdata[cid] = YTChannel(cdata)
+						self.channels[cid] = cached_cdata[cid] = YTChannel(cdata)
 						fetched.append(cid)
 
 					if self.autosave:
@@ -646,16 +646,16 @@ class YoutubeAPI:
 				raise e
 
 		# Set blank data if could not fetch
-		if len(requested_cdata) < len(cids):
+		if len(cached_cdata) < len(cids):
 			nowdate = timestamp()
 			for cid in cids:
-				if not cid in requested_cdata:
-					self.channels[cid] = requested_cdata[cid] = YTChannel({'cid': cid, 'updated': nowdate})
+				if not cid in cached_cdata:
+					self.channels[cid] = cached_cdata[cid] = YTChannel({'cid': cid, 'updated': nowdate})
 
 			if self.autosave:
 				self.save(self.autosave, print_log=False)
 
-		return requested_cdata
+		return cached_cdata
 
 	def get_videos_data(self, vids:list[str]) -> dict[str,YTVideo]:
 		# Get data from cache

@@ -3,7 +3,7 @@ import os
 import time
 import datetime
 import requests
-from typing import Callable
+from typing import Any, Callable
 from utils.save import load_json_gz, save_json_gz
 from requests.adapters import HTTPAdapter, Retry
 
@@ -36,7 +36,7 @@ from requests.adapters import HTTPAdapter, Retry
 				reasons: [str]
 			}
 		},
-		'individual_rating': {
+		individual_rating: {
 			is_public: True/False,
 			n_comparisons: int,
 			last_compared_at: "2020-12-31T23:59:59.999999Z"
@@ -54,7 +54,7 @@ from requests.adapters import HTTPAdapter, Retry
 
 		cached: "2020-12-31T23:59:59Z"
 '''
-VData=dict[str,any]
+VData=dict[str,Any]
 
 ''' CData:
 	{
@@ -74,7 +74,7 @@ VData=dict[str,any]
 		cached: "2020-12-31T23:59:59Z"
 	}
 '''
-CData=dict[str,any]
+CData=dict[str,Any]
 
 def timestamp() -> str:
 	return datetime.datetime.now(tz=datetime.timezone.utc).isoformat(timespec='seconds')
@@ -176,18 +176,18 @@ class TournesolCommonAPI:
 
 	def call_get(self, path:str, jwt:str|None=None):
 		return self._call('get', path, jwt=jwt)
-	def call_post(self, path:str, body:dict[str,any], jwt:str|None=None):
+	def call_post(self, path:str, body:dict[str,Any], jwt:str|None=None):
 		return self._call('post', path, body, jwt=jwt)
-	def call_patch(self, path:str, body:dict[str,any], jwt:str|None=None):
+	def call_patch(self, path:str, body:dict[str,Any], jwt:str|None=None):
 		return self._call('patch', path, body, jwt=jwt)
-	def call_put(self, path:str, body:dict[str,any], jwt:str|None=None):
+	def call_put(self, path:str, body:dict[str,Any], jwt:str|None=None):
 		return self._call('put', path, body, jwt=jwt)
-	def call_delete(self, path:str, body:dict[str,any]=None, jwt:str|None=None):
+	def call_delete(self, path:str, body:dict[str,Any]=None, jwt:str|None=None):
 		self._call('delete', path, body, jwt=jwt)
-	def call_options(self, path:str, body:dict[str,any]=None, jwt:str|None=None):
+	def call_options(self, path:str, body:dict[str,Any]=None, jwt:str|None=None):
 		self._call('options', path, body, jwt=jwt)
 
-	def callTournesolMulti(self, path:str, args:str=None, start:int=0, end:int=0, fn_continue:Callable[[list[any]],bool]=None, jwt:str|None=None) -> list[any]:
+	def callTournesolMulti(self, path:str, args:str=None, start:int=0, end:int=0, fn_continue:Callable[[list[Any]],bool]=None, jwt:str|None=None) -> list[Any]:
 		LIMIT=1000
 		URL=f'{path}?limit={LIMIT}' + (('&' + args) if args else '')
 		offset=start
@@ -210,7 +210,7 @@ class TournesolCommonAPI:
 				total = rs['count']
 				last_res = rs['results']
 				allRes += last_res
-				print(f'{len(allRes)}', end=' ')
+				print(f'{len(allRes)}', end=' ', flush=True)
 				if (fn_continue is not None) and (not fn_continue(last_res)):
 					break
 		print('.')
@@ -510,7 +510,7 @@ class TournesolUserAPI:
 			'duration_ms': 0,
 		}
 		if fake:
-			print(body)
+			print(f'[FAKE] POST to {self.common.base_url}users/me/comparisons/videos with body:', body)
 		else:
 			cdata:CData = self.common.call_post('users/me/comparisons/videos', body, jwt=self.jwt)
 			cdata['cached'] = timestamp()
